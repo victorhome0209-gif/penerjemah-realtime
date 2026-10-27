@@ -1,0 +1,1472 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1420">
+<title>Penerjemah Suara</title>
+<style>
+  :root{--bg:#0f1420;--card:#171e2e;--card2:#1e2740;--line:#2a3552;--txt:#e8ecf5;--mut:#8e9bb8;--me:#3b82f6;--them:#10b981;--warn:#f59e0b;--bad:#ef4444;--ok:#10b981}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;margin:0}
+  body{background:var(--bg);color:var(--txt);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;overscroll-behavior:none}
+  #app{display:flex;flex-direction:column;height:100vh;height:100dvh;max-width:720px;margin:0 auto}
+  header{display:flex;align-items:center;gap:8px;padding:calc(8px + env(safe-area-inset-top)) 14px 8px}
+  header h1{font-size:17px;margin:0;flex:1;white-space:nowrap}
+  .chip{font-size:12px;padding:3px 9px;border-radius:99px;background:var(--card2);border:1px solid var(--line);color:var(--mut);white-space:nowrap}
+  .chip.ok{color:#7ee0b4}.chip.bad{color:#ffb4b4}
+  #btnSettings{background:var(--card2);border:1px solid var(--line);color:var(--txt);border-radius:12px;font-size:20px;width:44px;height:44px}
+  #tabs{display:flex;gap:6px;padding:0 12px 8px;border-bottom:1px solid var(--line)}
+  #tabs button{flex:1;padding:10px 4px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--mut);font:inherit;font-size:14.5px;font-weight:600}
+  #tabs button.on{background:var(--me);border-color:var(--me);color:#fff}
+  .view{display:none;flex:1;min-height:0;flex-direction:column}
+  .view.on{display:flex}
+  .scroll{flex:1;overflow-y:auto;padding:12px 14px calc(24px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch}
+
+  /* ---- Bicara ---- */
+  #stage{flex:1;overflow-y:auto;padding:14px;-webkit-overflow-scrolling:touch}
+  #subOrig{color:var(--mut);font-size:14px;min-height:20px;word-break:break-word}
+  #subBig{font-size:var(--subsize,30px);line-height:1.4;font-weight:600;margin:8px 0 14px;word-break:break-word}
+  #subBig .w{padding:0 3px;border-radius:7px;color:#7d8bab}
+  #subBig .w.done{color:var(--txt)}
+  #subBig .w.on{background:var(--me);color:#fff}
+  #subBig.side-them .w.on{background:var(--them)}
+  .hint{color:var(--mut);font-size:15px;line-height:1.6}
+  .hint b{color:var(--txt)}
+  .h{border:1px solid var(--line);border-radius:12px;padding:9px 11px;margin:8px 0;font-size:13.5px;color:var(--mut);word-break:break-word}
+  .h .tr{display:block;color:var(--txt);font-size:16px;font-weight:600}
+  .h .heard{margin-top:2px;color:#b8c3dd}
+  .h .meta{font-size:12px;margin-top:2px}
+  .h.me{border-left:4px solid var(--me)}.h.them{border-left:4px solid var(--them)}
+  .rv{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:7px;font-size:12.5px}
+  .rv button{border:1px solid var(--line);background:var(--card2);color:var(--txt);border-radius:9px;min-width:40px;height:34px;font:inherit}
+  .rv button.sel.ok{background:#0e3b2e;border-color:var(--ok)}
+  .rv button.sel.bad{background:#4a1d1d;border-color:var(--bad)}
+  .rv input{flex:1 1 100%;font-size:14px;padding:7px 9px}
+  #dock{padding:8px 12px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:#0b101b}
+  #live{min-height:30px;font-size:14px;color:var(--mut);font-style:italic;padding:2px 4px 6px;word-break:break-word}
+  .meter{height:10px;border-radius:6px;background:#0b101b;border:1px solid var(--line);overflow:hidden;margin:2px 0 8px}
+  .meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,#10b981 0%,#10b981 60%,#f59e0b 80%,#ef4444 100%);transition:width .06s}
+  #typeRow{display:none;gap:6px;margin-bottom:8px}
+  #typeRow.open{display:flex}
+  #typeRow input{flex:1;min-width:0}
+  .btns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .talk{min-height:84px;border:2px solid var(--line);border-radius:16px;background:var(--card2);color:var(--txt);font:inherit;text-align:left;padding:10px 12px}
+  .talk b{display:block;font-size:17px}
+  .talk small{color:var(--mut);font-size:12.5px;line-height:1.3;display:block}
+  .talk.me.on{border-color:var(--me);box-shadow:0 0 0 3px #3b82f633}
+  .talk.them.on{border-color:var(--them);box-shadow:0 0 0 3px #10b98133}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--line);margin-right:7px}
+  .talk.on .dot{background:var(--bad);animation:pulse 1s infinite}
+  @keyframes pulse{50%{opacity:.3}}
+  .mini{display:flex;gap:8px;align-items:center;margin-top:8px;font-size:12px;color:var(--mut)}
+  .mini .sp{flex:1;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* ---- umum ---- */
+  button.sm{background:var(--card2);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:10px 12px;font:inherit;font-size:14px}
+  button.pri{background:var(--me);border:0;color:#fff;border-radius:12px;padding:12px 16px;font:inherit;font-weight:600}
+  button.big{width:100%;min-height:54px;font-size:17px}
+  .row>button.big{width:auto;flex:1 1 auto}
+  button.danger{background:#4a1d1d;border:1px solid var(--bad);color:#ffd0d0}
+  button:disabled{opacity:.5}
+  input,select,textarea{background:#0b101b;color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit;font-size:16px;width:100%}
+  input[type=checkbox],input[type=radio]{width:auto;padding:0}
+  input[type=range]{width:100%;padding:0}
+  label{display:block;font-size:13px;color:var(--mut);margin:10px 0 4px}
+  label.chk{display:flex;gap:10px;align-items:center;color:var(--txt);font-size:15px}
+  .row{display:flex;gap:8px;align-items:center}
+  .row>*{flex:1;min-width:0}
+  .row>button{flex:0 0 auto}
+  .note{font-size:12.5px;color:var(--mut);line-height:1.5}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin:10px 0}
+  .card h3{margin:0 0 6px;font-size:16px}
+  .seg{display:flex;gap:6px;margin:6px 0}
+  .seg button{flex:1;padding:11px 6px;border-radius:12px;border:1px solid var(--line);background:var(--card2);color:var(--txt);font:inherit;font-size:14px}
+  .seg button.on{background:var(--me);border-color:var(--me);color:#fff}
+  .target{font-size:22px;line-height:1.4;font-weight:600;margin:6px 0;word-break:break-word}
+  .verdict{border-radius:12px;padding:10px 12px;margin-top:8px;font-size:14px;line-height:1.5}
+  .verdict.ok{background:#0e3b2e;border:1px solid var(--ok)}
+  .verdict.warn{background:#3d3210;border:1px solid var(--warn)}
+  .verdict.bad{background:#4a1d1d;border:1px solid var(--bad)}
+  .verdict ul{margin:4px 0 0;padding-left:18px}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:14px;margin-top:6px}
+  .kv span:nth-child(odd){color:var(--mut)}
+  .readtext{background:#0b101b;border:1px solid var(--line);border-radius:12px;padding:12px;font-size:17px;line-height:1.6;max-height:260px;overflow-y:auto}
+  .who{border-radius:12px;padding:10px 12px;font-weight:700;margin:8px 0}
+  .who.me{background:#14284d;border:1px solid var(--me)}
+  .who.them{background:#0e3b2e;border:1px solid var(--them)}
+  button.pri.pulse{animation:pulse 1.2s infinite}
+  .seg.wrap{flex-wrap:wrap}.seg.wrap button{flex:1 1 44%}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+  mark.d{background:#4a1d1d;color:#ffd0d0;border-radius:4px;padding:0 3px}
+  mark.i{background:#3d3210;color:#ffe3a3;border-radius:4px;padding:0 3px}
+  .diff{font-size:14px;line-height:1.7;margin-top:8px}
+  .diff>div{margin-bottom:6px}.diff span{display:block;font-size:12px;color:var(--mut)}
+  .spoken{font-size:12.5px;color:#9fd4ff;margin-top:2px}
+  textarea.dlg{font-size:15px;line-height:1.5}
+  .acc{font-size:26px;font-weight:700}
+  .acc.good{color:#7ee0b4}.acc.mid{color:var(--warn)}.acc.low{color:#ff9b9b}
+
+  #sheet{position:fixed;inset:0;background:#000b;display:none;z-index:10}
+  #sheet.open{display:flex;align-items:flex-end}
+  #sheetBody{background:var(--bg);width:100%;max-width:720px;margin:0 auto;max-height:92vh;max-height:92dvh;overflow-y:auto;border-radius:18px 18px 0 0;padding:14px 14px calc(20px + env(safe-area-inset-bottom));border:1px solid var(--line)}
+  #sheetBody h2{font-size:18px;margin:0 0 4px;display:flex;justify-content:space-between;align-items:center}
+  details{border:1px solid var(--line);border-radius:12px;margin:10px 0;background:var(--card)}
+  summary{padding:13px 12px;font-weight:600;cursor:pointer}
+  details>div{padding:0 12px 12px}
+  #toast{position:fixed;left:12px;right:12px;bottom:calc(160px + env(safe-area-inset-bottom));background:#2a3552;color:var(--txt);padding:10px 14px;border-radius:12px;font-size:14px;opacity:0;pointer-events:none;transition:.2s;z-index:20;text-align:center}
+  #toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>🎙️ Penerjemah</h1>
+    <span class="chip" id="support">…</span>
+    <span class="chip" id="timer">00:00</span>
+    <button id="btnSettings" aria-label="Pengaturan">⚙️</button>
+  </header>
+  <nav id="tabs">
+    <button data-view="talk" class="on">🗣️ Bicara</button>
+    <button data-view="test">🧪 Uji</button>
+    <button data-view="voice">🎤 Suara saya</button>
+  </nav>
+
+  <!-- ===================== BICARA ===================== -->
+  <section class="view on" id="view-talk">
+    <main id="stage">
+      <div id="subOrig"></div>
+      <div id="subBig" class="side-me"></div>
+      <div class="hint" id="hint">
+        <b>Mulai cepat</b><br>
+        1. Buka ⚙️ lalu isi <b>API key OpenAI</b> (untuk mengenali suara dan menerjemahkan).<br>
+        2. Buka tab <b>🎤 Suara saya</b>, lakukan <b>tes mikrofon</b>, lalu (opsional) buat <b>klon suara</b>.<br>
+        3. Di sini, tekan <b>Saya bicara</b> lalu bicara bahasa Indonesia. Saat orang asing bicara, tekan <b>Lawan bicara</b>.<br>
+        4. Untuk menguji dengan beberapa orang, pakai tab <b>🧪 Uji</b>.<br>
+        Pakai earphone bila memungkinkan supaya suara terjemahan tidak tertangkap mikrofon.
+      </div>
+      <div id="hist"></div>
+    </main>
+    <div id="dock">
+      <div id="live">Tekan salah satu tombol untuk mulai.</div>
+      <div class="meter" id="meterTalkBox" style="display:none"><i id="meterTalk"></i></div>
+      <div id="typeRow">
+        <select id="typeSide" style="width:auto"><option value="me">Saya (ID)</option><option value="them">Lawan (EN)</option></select>
+        <input id="typed" type="text" placeholder="Ketik kalimat lalu Kirim" autocomplete="off">
+        <button class="pri" id="sendTyped">Kirim</button>
+      </div>
+      <div class="btns">
+        <button class="talk me" id="btnMe"><b><span class="dot"></span>Saya bicara</b><small>Indonesia → Inggris</small></button>
+        <button class="talk them" id="btnThem"><b><span class="dot"></span>Lawan bicara</b><small>Inggris → Indonesia</small></button>
+      </div>
+      <div class="mini">
+        <button class="sm" id="btnType">⌨️ Ketik</button>
+        <button class="sm" id="btnClear">🗑️ Bersihkan</button>
+        <span class="sp" id="eng">mesin: –</span>
+        <span id="lat">–</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== UJI ===================== -->
+  <section class="view" id="view-test">
+    <div class="scroll">
+      <div class="card">
+        <h3>Data penguji</h3>
+        <label>Nama penguji</label>
+        <input id="testerName" type="text" placeholder="contoh: Budi" autocomplete="off">
+        <label>Nama sesi uji</label>
+        <input id="sessionName" type="text" autocomplete="off">
+        <button class="sm" id="btnNewSession" style="margin-top:8px">➕ Mulai sesi baru (penguji berikutnya)</button>
+      </div>
+
+      <div class="card">
+        <h3>Uji naskah</h3>
+        <p class="note">Penguji membaca kalimat di layar sesuai giliran. Aplikasi menghitung <b>kesesuaian ucapan dengan dialog</b> dan menampilkan terjemahannya untuk diperiksa.</p>
+        <label>Pilih naskah</label>
+        <select id="scriptSel">
+          <option value="A">Dialog A: Saya bertanya (Indonesia), Lawan menjawab (Inggris)</option>
+          <option value="B">Dialog B: Lawan bertanya (Inggris), Saya menjawab (Indonesia)</option>
+          <option value="custom">Dialog sendiri</option>
+          <option value="me">Kalimat uji: Saya (Indonesia)</option>
+          <option value="them">Kalimat uji: Lawan (Inggris)</option>
+        </select>
+        <div class="note" id="scriptDesc"></div>
+        <div class="who me" id="scriptWho"></div>
+        <div class="note" id="scriptPos">Baris 1</div>
+        <div class="target" id="scriptTarget"></div>
+        <div class="note" id="scriptMean"></div>
+        <div class="row" style="margin-top:10px">
+          <button class="sm" id="btnPrev" aria-label="Sebelumnya">◀</button>
+          <button class="pri big" id="btnRec">🎤 Rekam kalimat ini</button>
+          <button class="sm" id="btnNext" aria-label="Berikutnya">▶</button>
+        </div>
+        <button class="sm" id="btnRestart" style="margin-top:8px">↺ Ulang dari baris 1 (reset konteks percakapan)</button>
+        <div class="meter" style="margin-top:8px"><i id="meterTest"></i></div>
+        <div class="note" id="scriptStatus"></div>
+        <label class="chk"><input type="checkbox" id="testSpeak"> Ucapkan juga terjemahannya (uji suara)</label>
+        <div id="scriptResult"></div>
+      </div>
+
+      <div class="card" id="customCard" style="display:none">
+        <h3>Dialog sendiri</h3>
+        <p class="note">Satu baris per kalimat. Awali dengan <b>Saya:</b> (dibacakan dalam Indonesia) atau <b>Lawan:</b> (dibacakan dalam Inggris). Tambahkan acuan terjemahan setelah tanda <b>|</b>. Tanpa awalan, baris bergantian Saya dan Lawan. Contoh:<br><i>Saya: Halo, apa kabar? | Hello, how are you?</i></p>
+        <textarea class="dlg" id="customDialog" rows="8" placeholder="Saya: ... | ...&#10;Lawan: ... | ..."></textarea>
+        <div class="row" style="margin-top:8px"><button class="sm" id="btnSampleDialog">Isi contoh</button><button class="pri" id="btnUseDialog">Simpan dan pakai</button></div>
+        <div class="note" id="customInfo"></div>
+      </div>
+
+      <div class="card">
+        <h3>Ringkasan sesi</h3>
+        <div class="kv" id="summary"></div>
+        <label>Cakupan ekspor</label>
+        <select id="exportScope"><option value="session">Sesi ini saja</option><option value="all">Semua sesi</option></select>
+        <div class="grid3">
+          <button class="sm" id="expCsv">⬇️ CSV</button>
+          <button class="sm" id="expTxt">⬇️ Laporan</button>
+          <button class="sm" id="expTrans">⬇️ Transkrip</button>
+          <button class="sm" id="expJson">⬇️ JSON</button>
+          <button class="sm" id="expShare">📤 Bagikan</button>
+          <button class="sm" id="expCopy">📋 Salin</button>
+        </div>
+        <button class="sm danger" id="expClear" style="margin-top:8px;width:100%">Hapus semua catatan di HP ini</button>
+        <p class="note">Tersimpan otomatis di HP: teks yang terdengar, teks yang diucapkan aplikasi (dan suara yang dipakai), terjemahan, kesesuaian dengan dialog, nilai ✓/✗ penguji, dan kualitas mikrofon. <b>Transkrip</b> berisi percakapan berurutan seperti naskah dialog.</p>
+      </div>
+      <div class="card">
+        <h3>Semua kalimat sesi ini</h3>
+        <div id="testList" class="note">Belum ada.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SUARA SAYA ===================== -->
+  <section class="view" id="view-voice">
+    <div class="scroll">
+      <div class="card">
+        <h3>1. Tes mikrofon</h3>
+        <p class="note">Agar ucapan terdengar jelas: pegang HP 10–15 cm dari mulut, di ruangan sunyi. Headset ber-mikrofon lebih baik.</p>
+        <label>Sumber mikrofon</label>
+        <select id="micDevice"><option value="">Mikrofon bawaan</option></select>
+        <button class="pri big" id="btnMicTest" style="margin-top:8px">🎚️ Mulai tes (8 detik)</button>
+        <div class="meter" style="margin-top:8px"><i id="meterMic"></i></div>
+        <div class="note" id="micHint">Setelah menekan tombol, ucapkan: "satu, dua, tiga … sepuluh".</div>
+        <div id="micVerdict"></div>
+      </div>
+
+      <div class="card">
+        <h3>2. Rekam sampel suara kamu</h3>
+        <p class="note">Baca naskah di bawah dengan suara natural dan ekspresif (jangan berbisik atau berteriak). Rekaman 60–120 detik, tanpa musik. Disimpan lossless (WAV) supaya jernih.</p>
+        <div class="readtext" id="readText"></div>
+        <label>Kualitas rekaman</label>
+        <select id="sampleProfile">
+          <option value="raw">Mentah, tanpa pemrosesan (disarankan di ruangan sunyi)</option>
+          <option value="clean">Dengan peredam bising (untuk ruangan kurang sunyi)</option>
+        </select>
+        <button class="pri big" id="btnRecSample" style="margin-top:8px">⏺ Mulai rekam</button>
+        <div class="meter" style="margin-top:8px"><i id="meterRec"></i></div>
+        <div class="note" id="recInfo">Belum ada rekaman.</div>
+        <audio id="samplePrev" controls style="display:none;width:100%;margin-top:8px"></audio>
+        <div id="recVerdict"></div>
+        <label>Atau pilih file rekaman yang sudah ada</label>
+        <input type="file" id="sampleFile" accept="audio/*">
+      </div>
+
+      <div class="card">
+        <h3>3. Buat klon suara</h3>
+        <p class="note">Butuh API key ElevenLabs (paket Starter ke atas) di ⚙️ Pengaturan. Status kunci: <b id="elKeyState">belum diisi</b></p>
+        <label class="chk"><input type="checkbox" id="consent"> Ini suara saya sendiri dan saya setuju dikloning</label>
+        <label>Nama klon</label>
+        <input id="cloneName" type="text" value="Suara Saya">
+        <button class="pri big" id="cloneBtn" style="margin-top:8px">✨ Buat klon dari rekaman</button>
+        <div class="note" id="cloneStatus"></div>
+        <label>Voice ID (terisi otomatis)</label>
+        <input id="voiceId" type="text" placeholder="belum ada klon" autocomplete="off">
+      </div>
+
+      <div class="card">
+        <h3>4. Dengarkan hasilnya</h3>
+        <label>Kalimat Inggris untuk dicoba</label>
+        <textarea id="voiceTestText" rows="2">Hello, this is my own voice speaking English. Nice to meet you.</textarea>
+        <div class="row" style="margin-top:8px">
+          <button class="sm" id="btnPlayClone">▶ Suara klon</button>
+          <button class="sm" id="btnPlayOrig">▶ Suara asli</button>
+        </div>
+        <label class="chk" style="margin-top:10px"><input type="checkbox" id="useEL"> Pakai suara klon saat menerjemahkan (arah Saya → Inggris)</label>
+        <div class="note" id="voiceStatus"></div>
+        <p class="note">Karakter terpakai: <b id="elChars">0</b> · perkiraan biaya suara: <b id="elCost">$0.00</b></p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div id="toast"></div>
+
+<!-- ===================== PENGATURAN ===================== -->
+<div id="sheet">
+  <div id="sheetBody">
+    <h2>Pengaturan <button class="sm" id="btnClose">Tutup</button></h2>
+
+    <details open>
+      <summary>Kunci layanan (tersimpan hanya di HP ini)</summary>
+      <div>
+        <label>API key OpenAI (pengenal suara dan terjemahan)</label>
+        <div class="row"><input id="keyOpenAI" type="password" placeholder="sk-…" autocomplete="off"><button class="sm" data-paste="keyOpenAI">Tempel</button></div>
+        <label>API key Claude (jika terjemahan pakai Claude)</label>
+        <div class="row"><input id="keyClaude" type="password" placeholder="sk-ant-…" autocomplete="off"><button class="sm" data-paste="keyClaude">Tempel</button></div>
+        <label>API key ElevenLabs (untuk suara klon)</label>
+        <div class="row"><input id="elkey" type="password" placeholder="sk_…" autocomplete="off"><button class="sm" data-paste="elkey">Tempel</button></div>
+        <p class="note">Jangan pakai di HP orang lain. Kunci dikirim langsung ke penyedia, tidak lewat server lain.</p>
+      </div>
+    </details>
+
+    <details open>
+      <summary>Pengenal suara dan mikrofon</summary>
+      <div>
+        <label>Pengenal suara (mengubah suara jadi teks)</label>
+        <select id="sttEngine">
+          <option value="openai">OpenAI: lebih akurat, rekaman jernih (disarankan)</option>
+          <option value="browser">Browser: gratis, bawaan HP</option>
+        </select>
+        <label>Model pengenal suara OpenAI</label>
+        <input id="modelSTT" type="text" autocomplete="off">
+        <label>Mutu mikrofon saat menerjemahkan</label>
+        <select id="micProfile">
+          <option value="clean">Jernih otomatis: peredam gema dan bising (disarankan)</option>
+          <option value="raw">Mentah: tanpa pemrosesan</option>
+        </select>
+        <label>Kepekaan mendeteksi suara: <span id="sensVal">1.0</span>×</label>
+        <input type="range" id="sens" min="0.5" max="2" step="0.1" value="1">
+        <p class="note">Naikkan kepekaan bila suara pelan tidak terdeteksi; turunkan bila bising dianggap suara. Pengenal suara "Browser" memakai mikrofon bawaan HP dan tidak bisa diatur mutunya.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>Terjemahan</summary>
+      <div>
+        <label>Mesin terjemahan</label>
+        <select id="engine">
+          <option value="openai">AI: OpenAI (akurat, disarankan)</option>
+          <option value="claude">AI: Claude (akurat)</option>
+          <option value="mymemory">MyMemory (gratis, sering salah)</option>
+        </select>
+        <label>Model OpenAI (terjemahan)</label>
+        <input id="modelOpenAI" type="text" autocomplete="off">
+        <label>Model Claude</label>
+        <input id="modelClaude" type="text" autocomplete="off">
+      </div>
+    </details>
+
+    <details>
+      <summary>Suara dan tampilan</summary>
+      <div>
+        <label>Mode suara</label>
+        <select id="mode">
+          <option value="face">Tatap muka: terjemahan Inggris lewat speaker HP, ucapan lawan hanya teks</option>
+          <option value="headset">Earphone / Zoom: kedua arah diucapkan</option>
+          <option value="text">Teks saja: tanpa suara</option>
+        </select>
+        <label>Kecepatan suara: <span id="rateVal">1.0</span>×</label>
+        <input type="range" id="rate" min="0.7" max="1.4" step="0.1" value="1.0">
+        <label>Ukuran subtitle: <span id="sizeVal">30</span> px</label>
+        <input type="range" id="subSize" min="18" max="56" value="30">
+        <label class="chk"><input type="checkbox" id="subOn" checked> Subtitle menyala per kata</label>
+        <label class="chk"><input type="checkbox" id="keepAwake" checked> Jaga layar tetap menyala saat mendengarkan</label>
+        <label>Model ElevenLabs</label>
+        <input id="elModel" type="text" autocomplete="off">
+      </div>
+    </details>
+
+    <details>
+      <summary>Catatan</summary>
+      <div class="note">
+        • Android: pakai <b>Chrome</b>. iPhone: pakai <b>Safari</b>. Izinkan mikrofon saat diminta.<br>
+        • Pengenal suara OpenAI merekam langsung dari mikrofon, lalu mengirim potongan ucapan. Biayanya kecil (kira-kira beberapa sen per jam bicara).<br>
+        • Di iPhone, saat mikrofon aktif suara bisa keluar pelan lewat earpiece. Pakai earphone.<br>
+        • Hasil terjemahan dan pengenalan suara adalah perkiraan mesin; periksa angka, nama, dan tanggal penting secara tertulis.
+      </div>
+    </details>
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const UA = navigator.userAgent;
+  const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(UA);
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const cfg = {
+    me:   { src:'id', tgt:'en', recLang:'id-ID', ttsLang:'en-US', label:'Saya' },
+    them: { src:'en', tgt:'id', recLang:'en-US', ttsLang:'id-ID', label:'Lawan' }
+  };
+  let speaking = false, secs = 0, timer = null, wake = null;
+  const history = [];
+
+  // ================= util =================
+  function lsGet(k){ try{ return localStorage.getItem(k); }catch(_){ return null; } }
+  function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(_){} }
+  function toast(msg){ const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 3800); }
+  function setLive(txt){ $('live').textContent = txt; }
+  function fmt(s){ return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0'); }
+  function decode(s){ const t = document.createElement('textarea'); t.innerHTML = s; return t.value; }
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  function openSheet(){ $('sheet').classList.add('open'); }
+  function closeSheet(){ $('sheet').classList.remove('open'); }
+  function bind(id, key, def, onchange){
+    const el = $(id), v = lsGet(key);
+    if(el.type === 'checkbox'){
+      el.checked = v === null ? def : v === '1';
+      el.addEventListener('change', () => { lsSet(key, el.checked ? '1' : '0'); if(onchange) onchange(); });
+    } else {
+      el.value = v === null ? def : v;
+      const h = () => { lsSet(key, el.value.trim()); if(onchange) onchange(); };
+      el.addEventListener('input', h); el.addEventListener('change', h);
+    }
+  }
+
+  // ================= audio dasar =================
+  const toDb = v => 20 * Math.log10(Math.max(v, 1e-7));
+  function rmsPeak(x){ let s = 0, p = 0; for(let i = 0; i < x.length; i++){ const v = x[i], a = v < 0 ? -v : v; s += v * v; if(a > p) p = a; } return { rms: Math.sqrt(s / x.length), peak: p }; }
+  function concatF32(chunks){ let n = 0; chunks.forEach(c => n += c.length); const out = new Float32Array(n); let o = 0; chunks.forEach(c => { out.set(c, o); o += c.length; }); return out; }
+  function resample(x, rin, rout){
+    if(rin === rout) return x;
+    const ratio = rin / rout, n = Math.floor(x.length / ratio), out = new Float32Array(n);
+    for(let i = 0; i < n; i++){
+      const a = Math.floor(i * ratio), b = Math.min(x.length, Math.floor((i + 1) * ratio));
+      let s = 0; for(let k = a; k < b; k++) s += x[k];
+      out[i] = b > a ? s / (b - a) : (x[a] || 0);
+    }
+    return out;
+  }
+  function encodeWav(x, rate){
+    const buf = new ArrayBuffer(44 + x.length * 2), v = new DataView(buf);
+    const w = (o, s) => { for(let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    w(0,'RIFF'); v.setUint32(4, 36 + x.length * 2, true); w(8,'WAVE'); w(12,'fmt '); v.setUint32(16, 16, true);
+    v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true);
+    v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36,'data'); v.setUint32(40, x.length * 2, true);
+    let o = 44;
+    for(let i = 0; i < x.length; i++, o += 2){ const s = Math.max(-1, Math.min(1, x[i])); v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7FFF, true); }
+    return buf;
+  }
+  function analyzeFrames(chunks, rate){
+    const n = Math.max(1, Math.floor(rate * 0.02)), rmsArr = [];
+    let peak = 0, clip = 0, total = 0;
+    chunks.forEach(f => {
+      for(let i = 0; i + n <= f.length; i += n){
+        let s = 0;
+        for(let k = 0; k < n; k++){ const v = f[i + k], a = v < 0 ? -v : v; s += v * v; if(a > peak) peak = a; if(a >= 0.99) clip++; }
+        total += n; rmsArr.push(Math.sqrt(s / n));
+      }
+    });
+    if(!rmsArr.length) return null;
+    const sorted = rmsArr.slice().sort((a, b) => a - b);
+    const q = p => sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))];
+    const noise = q(0.1), speech = q(0.9);
+    return { dur: total / rate, peakDb: toDb(peak), speechDb: toDb(speech), noiseDb: toDb(noise), snr: toDb(speech) - toDb(noise), clipPct: 100 * clip / total };
+  }
+  function verdictFor(a){
+    if(!a) return { lvl:'bad', msgs:['Tidak ada suara terekam. Periksa izin mikrofon.'] };
+    const msgs = []; let lvl = 'ok';
+    const up = l => { if(l === 'bad' || (l === 'warn' && lvl === 'ok')) lvl = l; };
+    if(a.speechDb < -42){ up('bad'); msgs.push('Suara terlalu pelan. Dekatkan HP (10–15 cm dari mulut) dan bicara lebih jelas.'); }
+    else if(a.speechDb < -34){ up('warn'); msgs.push('Suara agak pelan. Dekatkan HP sedikit.'); }
+    if(a.clipPct > 0.1 || a.peakDb > -0.5){ up('bad'); msgs.push('Suara pecah (terlalu keras). Jauhkan HP sedikit atau bicara lebih pelan.'); }
+    if(a.snr < 12){ up('bad'); msgs.push('Terlalu bising. Pindah ke ruangan sunyi atau pakai headset ber-mikrofon.'); }
+    else if(a.snr < 20){ up('warn'); msgs.push('Cukup, tapi masih ada bising. Semakin sunyi semakin baik.'); }
+    if(!msgs.length) msgs.push('Bagus! Suara jernih dan cukup keras.');
+    return { lvl, msgs };
+  }
+  function renderVerdict(el, a, extra){
+    const v = verdictFor(a);
+    const head = v.lvl === 'ok' ? '✅ Kualitas bagus' : v.lvl === 'warn' ? '⚠️ Cukup, bisa lebih baik' : '❌ Perlu diperbaiki';
+    const kv = a ? `<div class="kv"><span>Durasi</span><span>${a.dur.toFixed(1)} dtk</span><span>Level suara</span><span>${a.speechDb.toFixed(0)} dBFS</span><span>Bising latar</span><span>${a.noiseDb.toFixed(0)} dBFS</span><span>Jernih (SNR)</span><span>${a.snr.toFixed(0)} dB</span><span>Pecah</span><span>${a.clipPct.toFixed(2)}%</span></div>` : '';
+    el.innerHTML = `<div class="verdict ${v.lvl}"><b>${head}</b><ul>${v.msgs.map(m => '<li>' + esc(m) + '</li>').join('')}</ul>${kv}${extra ? '<div class="note" style="margin-top:6px">' + esc(extra) + '</div>' : ''}</div>`;
+  }
+  function setMeter(id, rms){
+    const el = $(id); if(!el) return;
+    const db = toDb(rms); el.style.width = Math.max(0, Math.min(100, (db + 60) / 60 * 100)) + '%';
+  }
+
+  // ================= tangkap mikrofon (WebAudio) =================
+  function micConstraints(profile){
+    const base = { channelCount: 1, sampleRate: { ideal: 48000 } };
+    const dev = $('micDevice').value; if(dev) base.deviceId = { exact: dev };
+    if(profile === 'raw') return { audio: { ...base, echoCancellation: false, noiseSuppression: false, autoGainControl: false } };
+    return { audio: { ...base, echoCancellation: true, noiseSuppression: true, autoGainControl: true } };
+  }
+  class Capture {
+    constructor(profile, onFrame){ this.profile = profile; this.onFrame = onFrame; this.stream = null; this.ctx = null; }
+    async start(){
+      this.stream = await navigator.mediaDevices.getUserMedia(micConstraints(this.profile));
+      const AC = window.AudioContext || window.webkitAudioContext;
+      this.ctx = new AC();
+      if(this.ctx.state === 'suspended') await this.ctx.resume();
+      this.rate = this.ctx.sampleRate;
+      this.src = this.ctx.createMediaStreamSource(this.stream);
+      this.proc = this.ctx.createScriptProcessor(2048, 1, 1);
+      const mute = this.ctx.createGain(); mute.gain.value = 0;
+      this.src.connect(this.proc); this.proc.connect(mute); mute.connect(this.ctx.destination);
+      this.proc.onaudioprocess = e => { if(this.stopped) return; this.onFrame(new Float32Array(e.inputBuffer.getChannelData(0)), this.rate); };
+      refreshDevices();
+    }
+    stop(){
+      this.stopped = true;
+      try{ this.proc.onaudioprocess = null; this.proc.disconnect(); this.src.disconnect(); }catch(_){}
+      try{ this.stream && this.stream.getTracks().forEach(t => t.stop()); }catch(_){}
+      try{ this.ctx && this.ctx.close(); }catch(_){}
+    }
+  }
+  async function refreshDevices(){
+    try{
+      const list = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput');
+      const sel = $('micDevice'), cur = sel.value;
+      if(list.length && list.some(d => d.label)){
+        sel.innerHTML = '<option value="">Mikrofon bawaan</option>' + list.map((d, i) => `<option value="${esc(d.deviceId)}">${esc(d.label || 'Mikrofon ' + (i + 1))}</option>`).join('');
+        sel.value = cur;
+      }
+    }catch(_){}
+  }
+  function micError(e){
+    const n = e && e.name;
+    const msg = (n === 'NotAllowedError' || n === 'SecurityError') ? 'Izin mikrofon ditolak. Buka pengaturan situs di browser lalu izinkan mikrofon.'
+      : n === 'NotFoundError' ? 'Mikrofon tidak ditemukan.' : 'Mikrofon tidak bisa dipakai: ' + ((e && e.message) || e);
+    setLive(msg); toast(msg);
+  }
+
+  // ================= dukungan browser =================
+  const hasMic = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  if(hasMic || SR){ $('support').textContent = 'mic siap'; $('support').classList.add('ok'); }
+  else { $('support').textContent = 'mic tidak ada'; $('support').classList.add('bad'); setLive('Browser ini tidak mendukung mikrofon. Android: pakai Chrome. iPhone: pakai Safari.'); }
+
+  // ================= audio keluaran =================
+  const player = new Audio();
+  const SILENT = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+  function unlockAudio(){
+    try{ player.src = SILENT; const p = player.play(); if(p && p.catch) p.catch(() => {}); }catch(_){}
+    try{ if('speechSynthesis' in window){ const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } }catch(_){}
+  }
+  async function keepAwake(on){
+    try{
+      if(on && $('keepAwake').checked && 'wakeLock' in navigator){ wake = await navigator.wakeLock.request('screen'); }
+      else if(!on && wake){ await wake.release(); wake = null; }
+    }catch(_){}
+  }
+
+  // ================= subtitle sinkron =================
+  const sub = { words: [], idx: -1, text: '', timer: null, boundary: false };
+  function subClearTimer(){ if(sub.timer){ clearInterval(sub.timer); sub.timer = null; } }
+  function subShow(side, orig, tr, label){
+    subClearTimer(); sub.idx = -1; sub.words = []; sub.text = tr; sub.boundary = false;
+    $('hint').style.display = 'none';
+    $('subOrig').textContent = label + ' ' + orig;
+    const box = $('subBig'); box.textContent = ''; box.className = 'side-' + side;
+    const re = /\S+/g; let m;
+    while((m = re.exec(tr))){
+      const s = document.createElement('span'); s.className = 'w'; s.textContent = m[0];
+      box.appendChild(s); box.appendChild(document.createTextNode(' '));
+      sub.words.push({ el: s, start: m.index });
+    }
+    $('stage').scrollTop = 0;
+  }
+  function subSet(k){
+    if(k === sub.idx) return;
+    sub.words.forEach((w, j) => { w.el.classList.toggle('done', j < k); w.el.classList.toggle('on', j === k); });
+    sub.idx = k;
+  }
+  function subByChar(ci){ let k = 0; for(let j = 0; j < sub.words.length; j++){ if(sub.words[j].start <= ci) k = j; else break; } subSet(k); }
+  function subDone(){ subClearTimer(); sub.words.forEach(w => { w.el.classList.add('done'); w.el.classList.remove('on'); }); sub.idx = sub.words.length; }
+  function subEstimate(total){
+    subClearTimer();
+    const t0 = performance.now(), n = Math.max(1, sub.text.length);
+    sub.timer = setInterval(() => {
+      const el = (performance.now() - t0) / 1000;
+      subByChar(Math.min(n - 1, Math.floor(el / total * n)));
+      if(el >= total) subClearTimer();
+    }, 60);
+  }
+  function wordAt(starts, t){ let k = 0; for(let j = 0; j < starts.length; j++){ if(starts[j] <= t + 0.03) k = j; else break; } return k; }
+
+  // ================= ketepatan ucapan (kata yang salah) =================
+  const ONES_EN = ['zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];
+  const TENS_EN = ['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
+  const ORD_EN = { one:'first', two:'second', three:'third', five:'fifth', eight:'eighth', nine:'ninth', twelve:'twelfth' };
+  function wordsEn(n){
+    if(n < 20) return ONES_EN[n];
+    if(n < 100) return TENS_EN[Math.floor(n / 10)] + (n % 10 ? ' ' + ONES_EN[n % 10] : '');
+    if(n < 1000) return ONES_EN[Math.floor(n / 100)] + ' hundred' + (n % 100 ? ' and ' + wordsEn(n % 100) : '');
+    if(n < 1000000) return wordsEn(Math.floor(n / 1000)) + ' thousand' + (n % 1000 ? ' ' + wordsEn(n % 1000) : '');
+    return String(n);
+  }
+  function ordEn(n){ const w = wordsEn(n).split(' '), l = w[w.length - 1]; w[w.length - 1] = ORD_EN[l] || (l.endsWith('y') ? l.slice(0, -1) + 'ieth' : l + 'th'); return w.join(' '); }
+  const ONES_ID = ['nol','satu','dua','tiga','empat','lima','enam','tujuh','delapan','sembilan','sepuluh','sebelas'];
+  function wordsId(n){
+    if(n < 12) return ONES_ID[n];
+    if(n < 20) return ONES_ID[n - 10] + ' belas';
+    if(n < 100) return ONES_ID[Math.floor(n / 10)] + ' puluh' + (n % 10 ? ' ' + ONES_ID[n % 10] : '');
+    if(n < 200) return 'seratus' + (n % 100 ? ' ' + wordsId(n % 100) : '');
+    if(n < 1000) return ONES_ID[Math.floor(n / 100)] + ' ratus' + (n % 100 ? ' ' + wordsId(n % 100) : '');
+    if(n < 2000) return 'seribu' + (n % 1000 ? ' ' + wordsId(n % 1000) : '');
+    if(n < 1000000) return wordsId(Math.floor(n / 1000)) + ' ribu' + (n % 1000 ? ' ' + wordsId(n % 1000) : '');
+    return String(n);
+  }
+  function normText(text, lang){
+    let t = String(text).toLowerCase().replace(/[’‘]/g, "'");
+    if(lang === 'en'){
+      t = t.replace(/\$\s?(\d+)/g, (m, a) => a + ' dollars').replace(/(\d+)\s?%/g, (m, a) => a + ' percent')
+           .replace(/(\d+)(st|nd|rd|th)\b/g, (m, a) => ordEn(parseInt(a, 10)))
+           .replace(/\d[\d,]*/g, m => wordsEn(parseInt(m.replace(/,/g, ''), 10)))
+           .replace(/p\.m\./g, 'pm').replace(/a\.m\./g, 'am');
+      return t.replace(/-/g, ' ').replace(/[^a-z' ]/g, ' ').split(/\s+/).filter(Boolean).join(' ');
+    }
+    t = t.replace(/\$\s?(\d+)/g, (m, a) => a + ' dolar').replace(/(\d+)\s?%/g, (m, a) => a + ' persen')
+         .replace(/\d[\d.]*/g, m => wordsId(parseInt(m.replace(/\./g, ''), 10)));
+    return t.replace(/-/g, ' ').replace(/[^a-z ]/g, ' ').split(/\s+/).filter(Boolean).join(' ');
+  }
+  function wer(ref, hyp, lang){
+    const r = normText(ref, lang).split(' ').filter(Boolean), h = normText(hyp, lang).split(' ').filter(Boolean);
+    if(!r.length) return h.length ? 1 : 0;
+    let d = Array.from({ length: h.length + 1 }, (_, j) => j);
+    for(let i = 1; i <= r.length; i++){
+      let prev = d[0]; d[0] = i;
+      for(let j = 1; j <= h.length; j++){
+        const cur = d[j];
+        d[j] = Math.min(d[j] + 1, d[j - 1] + 1, prev + (r[i - 1] === h[j - 1] ? 0 : 1));
+        prev = cur;
+      }
+    }
+    return d[h.length] / r.length;
+  }
+  function accuracy(ref, hyp, lang){ return Math.max(0, 1 - wer(ref, hyp, lang)); }
+  function tokenF1(a, b, lang){
+    const A = normText(a, lang).split(' ').filter(Boolean), B = normText(b, lang).split(' ').filter(Boolean);
+    if(!A.length || !B.length) return 0;
+    const cnt = {}; B.forEach(w => cnt[w] = (cnt[w] || 0) + 1);
+    let hit = 0; A.forEach(w => { if(cnt[w] > 0){ hit++; cnt[w]--; } });
+    const p = hit / A.length, r = hit / B.length;
+    return p + r ? 2 * p * r / (p + r) : 0;
+  }
+  function alignTokens(a, b){
+    const n = a.length, m = b.length, dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+    for(let i = 0; i <= n; i++) dp[i][0] = i;
+    for(let j = 0; j <= m; j++) dp[0][j] = j;
+    for(let i = 1; i <= n; i++) for(let j = 1; j <= m; j++)
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    const ops = []; let i = n, j = m;
+    while(i > 0 || j > 0){
+      if(i > 0 && j > 0 && dp[i][j] === dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)){ ops.push({ t: a[i - 1] === b[j - 1] ? 'eq' : 'sub', a: a[i - 1], b: b[j - 1] }); i--; j--; }
+      else if(i > 0 && dp[i][j] === dp[i - 1][j] + 1){ ops.push({ t:'del', a: a[i - 1] }); i--; }
+      else { ops.push({ t:'ins', b: b[j - 1] }); j--; }
+    }
+    return ops.reverse();
+  }
+  function diffHtml(target, heard, lang){
+    const A = normText(target, lang).split(' ').filter(Boolean), B = normText(heard, lang).split(' ').filter(Boolean);
+    let ta = '', tb = '';
+    alignTokens(A, B).forEach(o => {
+      if(o.t === 'eq'){ ta += esc(o.a) + ' '; tb += esc(o.b) + ' '; }
+      else if(o.t === 'del'){ ta += '<mark class="d">' + esc(o.a) + '</mark> '; }
+      else if(o.t === 'ins'){ tb += '<mark class="i">' + esc(o.b) + '</mark> '; }
+      else { ta += '<mark class="d">' + esc(o.a) + '</mark> '; tb += '<mark class="i">' + esc(o.b) + '</mark> '; }
+    });
+    return '<div class="diff"><div><span>Dialog / naskah (merah = tidak terucap atau beda)</span>' + ta + '</div><div><span>Yang terdengar (kuning = tambahan atau beda)</span>' + tb + '</div></div>';
+  }
+
+  // ================= terjemahan =================
+  async function llm(text, src, tgt, provider){
+    const key = (provider === 'openai' ? $('keyOpenAI') : $('keyClaude')).value.trim();
+    if(!key) throw new Error('isi API key ' + (provider === 'openai' ? 'OpenAI' : 'Claude') + ' di ⚙️ dulu');
+    const model = (provider === 'openai' ? $('modelOpenAI') : $('modelClaude')).value.trim();
+    const from = src === 'id' ? 'Indonesian' : 'English', to = tgt === 'id' ? 'Indonesian' : 'English';
+    const ctx = history.slice(-4).map(h => (h.side === 'me' ? 'Freelancer: ' : 'Client: ') + h.orig).join('\n');
+    const sys = 'You are a live interpreter between a freelancer (Indonesian) and an overseas client (English). ' +
+      'Translate the speaker\'s utterance from ' + from + ' to ' + to + '. ' +
+      'The text comes from speech recognition, so quietly fix obvious recognition slips using context. ' +
+      'Keep the tone natural and conversational, keep proper names (people, places, products) unchanged. ' +
+      'Output ONLY the translation. Never answer questions, never add notes or quotes.' +
+      (ctx ? '\n\nRecent conversation (context only, do NOT translate):\n' + ctx : '');
+    let r, j;
+    if(provider === 'openai'){
+      r = await fetch('https://api.openai.com/v1/chat/completions', {
+        method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + key },
+        body: JSON.stringify({ model, temperature:0.2, messages:[ {role:'system',content:sys}, {role:'user',content:text} ] })
+      });
+      j = await r.json();
+      if(!r.ok) throw new Error((j.error && j.error.message) || ('HTTP ' + r.status));
+      return j.choices[0].message.content.trim();
+    }
+    r = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{ 'content-type':'application/json', 'x-api-key':key, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+      body: JSON.stringify({ model, max_tokens:300, temperature:0.2, system:sys, messages:[{role:'user',content:text}] })
+    });
+    j = await r.json();
+    if(!r.ok) throw new Error((j.error && j.error.message) || ('HTTP ' + r.status));
+    return j.content[0].text.trim();
+  }
+  async function translate(text, src, tgt){
+    const eng = $('engine').value;
+    if(eng === 'openai' || eng === 'claude'){
+      const out = await llm(text, src, tgt, eng);
+      return { text: out, engine: (eng === 'openai' ? 'OpenAI ' + $('modelOpenAI').value.trim() : 'Claude ' + $('modelClaude').value.trim()) };
+    }
+    const r = await fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(text) + '&langpair=' + src + '|' + tgt);
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    if(j.responseStatus && Number(j.responseStatus) !== 200) throw new Error(j.responseDetails || 'gagal');
+    return { text: decode(j.responseData.translatedText), engine:'MyMemory' };
+  }
+
+  // ================= pengenal suara via OpenAI =================
+  const HALLU = /(thanks for watching|thank you for watching|terima kasih (telah|sudah) menonton|subtitles? by|amara\.org)/i;
+  async function sttOpenAI(samples, rate, lang){
+    const key = $('keyOpenAI').value.trim();
+    if(!key) throw new Error('isi API key OpenAI di ⚙️');
+    const wav = encodeWav(resample(samples, rate, 16000), 16000);
+    const fd = new FormData();
+    fd.append('file', new Blob([wav], { type:'audio/wav' }), 'ucapan.wav');
+    fd.append('model', $('modelSTT').value.trim() || 'gpt-4o-mini-transcribe');
+    fd.append('language', lang); fd.append('response_format', 'json'); fd.append('temperature', '0');
+    const r = await fetch('https://api.openai.com/v1/audio/transcriptions', { method:'POST', headers:{ 'Authorization':'Bearer ' + key }, body: fd });
+    let j = {}; try{ j = await r.json(); }catch(_){}
+    if(!r.ok) throw new Error((j.error && j.error.message) || ('HTTP ' + r.status));
+    return (j.text || '').trim();
+  }
+
+  // ================= mendengarkan: satu pintu untuk dua mesin =================
+  const Listen = { active:false, side:null, once:false, onText:null, ui:'talk', engine:null, rec:null, cap:null, vad:null, timeout:null };
+  function micInfo(a){ return a ? { dur:+a.dur.toFixed(1), level_db:Math.round(a.speechDb), noise_db:Math.round(a.noiseDb), snr_db:Math.round(a.snr), clip_pct:+a.clipPct.toFixed(2) } : null; }
+  function deliver(side, text, meta){
+    if(!Listen.active) return;
+    if(Listen.once){ const cb = Listen.onText; stopListening(); cb(side, text, meta); }
+    else Listen.onText(side, text, meta);
+  }
+  function buildRec(side){
+    const r = new SR();
+    r.lang = cfg[side].recLang; r.continuous = !IS_MOBILE && !Listen.once; r.interimResults = true; r.maxAlternatives = 1;
+    r.onresult = ev => {
+      if(speaking) return;
+      let interim = '';
+      for(let i = ev.resultIndex; i < ev.results.length; i++){
+        const res = ev.results[i];
+        if(res.isFinal) deliver(side, res[0].transcript, { stt:'browser' });
+        else interim += res[0].transcript;
+      }
+      if(interim){ setLive('🎧 ' + interim); if(Listen.ui === 'talk' && $('subOn').checked && !speaking) $('subOrig').textContent = '🎧 ' + interim; }
+    };
+    r.onerror = ev => {
+      if(ev.error === 'not-allowed' || ev.error === 'service-not-allowed'){ setLive('Izin mikrofon ditolak. Buka pengaturan situs di browser lalu izinkan mikrofon.'); toast('Izin mikrofon ditolak'); stopListening(); }
+      else if(ev.error === 'network'){ setLive('Layanan suara browser tidak terjangkau. Cek internet.'); }
+      else if(ev.error === 'audio-capture'){ setLive('Mikrofon tidak terdeteksi.'); stopListening(); }
+    };
+    r.onend = () => {
+      if(Listen.active && !speaking && Listen.rec === r){
+        setTimeout(() => { if(Listen.active && !speaking && Listen.rec === r){ try{ r.start(); }catch(_){} } }, IS_MOBILE ? 250 : 0);
+      }
+    };
+    return r;
+  }
+  function micProfile(){ return $('micProfile').value; }
+  async function startVAD(side){
+    const lang = side === 'me' ? 'id' : 'en';
+    const v = { state:'idle', pre:[], buf:[], silentMs:0, speechMs:0, floor:null, calibMs:0, calibSum:0, calibN:0, onCount:0 };
+    Listen.vad = v;
+    const cap = new Capture(micProfile(), (x, rate) => vadFrame(v, x, rate, side, lang));
+    Listen.cap = cap;
+    await cap.start();
+    setLive('Menyesuaikan suara latar… diam sebentar, lalu bicara.');
+  }
+  function vadFrame(v, x, rate, side, lang){
+    if(!Listen.active || Listen.vad !== v) return;
+    const { rms } = rmsPeak(x), dur = x.length / rate * 1000;
+    setMeter(Listen.ui === 'test' ? 'meterTest' : 'meterTalk', rms);
+    if(speaking){ v.state = 'idle'; v.pre = []; v.buf = []; v.onCount = 0; return; }
+    if(v.floor === null){
+      v.calibMs += dur; v.calibSum += rms; v.calibN++;
+      if(v.calibMs >= 500){ v.floor = v.calibSum / v.calibN; setLive('Mendengarkan… (' + cfg[side].label + ')'); }
+      return;
+    }
+    const sens = parseFloat($('sens').value) || 1;
+    const thrOn = Math.max(0.012, v.floor * 3.5) / sens, thrOff = Math.max(0.007, v.floor * 2) / sens;
+    if(v.state === 'idle'){
+      v.pre.push(x); if(v.pre.length > 8) v.pre.shift();
+      if(rms > thrOn) v.onCount++; else { v.onCount = 0; v.floor = v.floor * 0.97 + rms * 0.03; }
+      if(v.onCount >= 2){ v.state = 'speech'; v.buf = v.pre.slice(); v.pre = []; v.silentMs = 0; v.speechMs = 0; setLive('🎧 Mendengar…'); }
+    } else {
+      v.buf.push(x); v.speechMs += dur;
+      if(rms < thrOff) v.silentMs += dur; else v.silentMs = 0;
+      if(v.silentMs >= 900 || v.speechMs > 25000) finishUtterance(v, rate, side, lang);
+    }
+  }
+  function finishUtterance(v, rate, side, lang){
+    const chunks = v.buf; v.buf = []; v.state = 'idle'; v.onCount = 0; v.pre = [];
+    const total = chunks.reduce((n, c) => n + c.length, 0) / rate * 1000, voiced = total - v.silentMs;
+    v.silentMs = 0;
+    if(voiced < 350){ setLive('Mendengarkan… (' + cfg[side].label + ')'); return; }
+    const samples = concatF32(chunks), info = analyzeFrames(chunks, rate);
+    setLive('Mengenali suara…');
+    transcribeUtterance(samples, rate, lang, info, side);
+  }
+  async function transcribeUtterance(samples, rate, lang, info, side){
+    const t0 = performance.now();
+    try{
+      const text = await sttOpenAI(samples, rate, lang);
+      const ms = Math.round(performance.now() - t0);
+      if(!text || HALLU.test(text)){ if(Listen.active) setLive('Mendengarkan… (' + cfg[side].label + ')'); return; }
+      deliver(side, text, { stt:'openai:' + ($('modelSTT').value.trim() || 'gpt-4o-mini-transcribe'), stt_ms: ms, mic: micInfo(info) });
+    }catch(e){
+      toast('Gagal mengenali suara: ' + e.message);
+      if(Listen.active) setLive('Gagal mengenali suara. Coba lagi.');
+    }
+  }
+  async function startListening(side, onText, once, ui){
+    stopListening();
+    unlockAudio();
+    const eng = $('sttEngine').value;
+    if(eng === 'openai' && !$('keyOpenAI').value.trim()){
+      setLive('Isi API key OpenAI di ⚙️ dulu, atau ganti pengenal suara ke "Browser".');
+      toast('Isi API key OpenAI di ⚙️ dulu'); openSheet(); return false;
+    }
+    if(eng === 'openai' && !hasMic){ setLive('Browser ini tidak mendukung mikrofon.'); return false; }
+    if(eng === 'browser' && !SR){ setLive('Browser ini tidak punya pengenal suara bawaan. Ganti ke OpenAI di ⚙️.'); toast('Ganti pengenal suara ke OpenAI di ⚙️'); return false; }
+    Object.assign(Listen, { active:true, side, once:!!once, onText, ui: ui || 'talk', engine: eng });
+    try{
+      if(eng === 'browser'){ Listen.rec = buildRec(side); Listen.rec.start(); }
+      else { await startVAD(side); }
+    }catch(e){ Listen.active = false; micError(e); refreshButtons(); return false; }
+    if(Listen.ui === 'talk') $('meterTalkBox').style.display = eng === 'openai' ? 'block' : 'none';
+    if(Listen.once){
+      Listen.timeout = setTimeout(() => {
+        if(Listen.active){ const cb = Listen.onText, s = Listen.side; stopListening(); cb(s, null, { timeout:true }); }
+      }, 40000);
+    }
+    keepAwake(true); startTimer(); refreshButtons();
+    return true;
+  }
+  function stopListening(){
+    Listen.active = false;
+    if(Listen.timeout){ clearTimeout(Listen.timeout); Listen.timeout = null; }
+    const r = Listen.rec; Listen.rec = null; if(r){ try{ r.stop(); }catch(_){} }
+    if(Listen.cap){ Listen.cap.stop(); Listen.cap = null; }
+    Listen.vad = null;
+    setMeter('meterTalk', 0); setMeter('meterTest', 0);
+    try{ if('speechSynthesis' in window) speechSynthesis.cancel(); }catch(_){}
+    try{ player.pause(); }catch(_){}
+    speaking = false; keepAwake(false); stopTimer(); refreshButtons();
+  }
+  function pauseListening(){ if(Listen.active && Listen.engine === 'browser' && Listen.rec){ try{ Listen.rec.stop(); }catch(_){} } if(Listen.vad){ const v = Listen.vad; v.state = 'idle'; v.pre = []; v.buf = []; v.onCount = 0; } }
+  function resumeListening(){ if(Listen.active && Listen.engine === 'browser'){ Listen.rec = buildRec(Listen.side); try{ Listen.rec.start(); }catch(_){} } }
+  function startTimer(){ if(!timer){ timer = setInterval(() => { secs++; $('timer').textContent = fmt(secs); }, 1000); } }
+  function stopTimer(){ if(timer && !Listen.active){ clearInterval(timer); timer = null; } }
+  function refreshButtons(){
+    const on = Listen.active && Listen.ui === 'talk';
+    $('btnMe').classList.toggle('on', on && Listen.side === 'me');
+    $('btnThem').classList.toggle('on', on && Listen.side === 'them');
+    const t = Listen.active && Listen.ui === 'test';
+    $('btnRec').textContent = t ? '⏹ Berhenti' : '🎤 Rekam kalimat ini';
+  }
+
+  // ================= suara klon + suara bawaan =================
+  function speak(text, lang){
+    return new Promise(res => {
+      if(!('speechSynthesis' in window)) return res();
+      const u = new SpeechSynthesisUtterance(text);
+      const rate = parseFloat($('rate').value);
+      u.lang = lang; u.rate = rate;
+      const v = speechSynthesis.getVoices().find(v => v.lang.toLowerCase().replace('_','-').startsWith(lang.slice(0, 2)));
+      if(v) u.voice = v;
+      let fb = null;
+      const mine = () => sub.words.length && sub.text === text;
+      u.onstart = () => { fb = setTimeout(() => { if(mine() && !sub.boundary) subEstimate(Math.max(0.8, text.length / (14 * rate))); }, 500); };
+      u.onboundary = e => { if(mine()){ sub.boundary = true; subClearTimer(); subByChar(e.charIndex); } };
+      u.onend = u.onerror = () => { clearTimeout(fb); if(mine()) subDone(); res(); };
+      speechSynthesis.speak(u);
+    });
+  }
+  let elChars = 0;
+  const elKey = () => $('elkey').value.trim();
+  const elReady = () => $('useEL').checked && elKey() && $('voiceId').value.trim();
+  function updEl(){
+    $('elChars').textContent = elChars.toLocaleString('id-ID');
+    $('elCost').textContent = '$' + (elChars / 1000 * 0.05).toFixed(2);
+    $('elKeyState').textContent = elKey() ? 'terisi ✓' : 'belum diisi';
+  }
+  async function elErr(r){
+    let m = 'HTTP ' + r.status;
+    try{ const j = await r.json(); const d = j.detail; if(d) m = (typeof d === 'string') ? d : (d.message || JSON.stringify(d)); }catch(_){}
+    return new Error(m);
+  }
+  async function elSpeak(text){
+    const sync = sub.words.length > 0 && sub.text === text;
+    const url = 'https://api.elevenlabs.io/v1/text-to-speech/' + encodeURIComponent($('voiceId').value.trim()) + (sync ? '/with-timestamps' : '') + '?output_format=mp3_44100_128';
+    const r = await fetch(url, {
+      method:'POST', headers:{ 'xi-api-key': elKey(), 'Content-Type':'application/json' },
+      body: JSON.stringify({ text, model_id: $('elModel').value.trim() || 'eleven_flash_v2_5' })
+    });
+    if(!r.ok) throw await elErr(r);
+    let blob, starts = null;
+    if(sync){
+      const j = await r.json();
+      const bin = atob(j.audio_base64), bytes = new Uint8Array(bin.length);
+      for(let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      blob = new Blob([bytes], { type:'audio/mpeg' });
+      const st = j.alignment && j.alignment.character_start_times_seconds;
+      if(st && st.length) starts = sub.words.map(w => st[Math.min(w.start, st.length - 1)]);
+    } else blob = await r.blob();
+    elChars += text.length; updEl();
+    const u = URL.createObjectURL(blob);
+    player.src = u; player.playbackRate = parseFloat($('rate').value);
+    let raf = 0;
+    const tick = () => { if(starts) subSet(wordAt(starts, player.currentTime)); if(!player.ended && !player.paused) raf = requestAnimationFrame(tick); };
+    await new Promise(res => {
+      player.onplay = () => {
+        if(starts) raf = requestAnimationFrame(tick);
+        else if(sync) subEstimate(Math.max(0.8, ((isFinite(player.duration) && player.duration) || text.length / 14) / player.playbackRate));
+      };
+      player.onended = player.onerror = res;
+      const p = player.play(); if(p && p.catch) p.catch(res);
+    });
+    cancelAnimationFrame(raf);
+    if(sync) subDone();
+    URL.revokeObjectURL(u);
+  }
+  async function speakSmart(text, lang, side){
+    if(side === 'me' && elReady()){
+      try{ await elSpeak(text); $('voiceStatus').textContent = ''; return 'klon ElevenLabs'; }
+      catch(e){ $('voiceStatus').textContent = '⚠ ElevenLabs gagal: ' + e.message + ' (dipakai suara HP)'; toast('ElevenLabs gagal, dipakai suara HP'); }
+    }
+    await speak(text, lang);
+    return 'suara HP';
+  }
+  function ttsFlags(){ const m = $('mode').value; return { me: m !== 'text', them: m === 'headset' }; }
+
+  // ================= log, ulasan, laporan =================
+  let LOG = [];
+  try{ LOG = JSON.parse(lsGet('tr_log') || '[]'); }catch(_){ LOG = []; }
+  function saveLog(){ lsSet('tr_log', JSON.stringify(LOG.slice(-600))); }
+  function currentSession(){ return $('sessionName').value.trim() || 'Sesi tanpa nama'; }
+  function defaultSessionName(){
+    const d = new Date(), p = n => String(n).padStart(2, '0');
+    return 'Sesi ' + d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+  function addLog(e){ LOG.push(e); saveLog(); renderSummary(); renderTestList(); }
+  function refreshEntry(e){
+    saveLog();
+    document.querySelectorAll('[data-eid="' + e.id + '"]').forEach(n => { n.outerHTML = entryHtml(e, true); });
+    renderSummary();
+  }
+  function findLog(id){ return LOG.find(e => e.id === id); }
+  function scopeLogs(){ return $('exportScope').value === 'all' ? LOG : LOG.filter(e => e.session === currentSession()); }
+  function mean(a){ return a.length ? a.reduce((x, y) => x + y, 0) / a.length : null; }
+  function dialogSummary(L){
+    let h = '';
+    ['A', 'B', 'custom'].forEach(k => {
+      const rows = L.filter(e => e.dialog === k); if(!rows.length) return;
+      const byLine = {}; rows.forEach(e => { byLine[e.line] = e; });
+      const last = Object.values(byLine);
+      const total = DIALOGS[k] ? DIALOGS[k].items.length : Script.custom.length;
+      const acc = last.filter(e => e.acc != null).map(e => e.acc), ts = last.filter(e => e.tsim != null).map(e => e.tsim);
+      h += `<span>${k === 'custom' ? 'Dialog sendiri' : 'Dialog ' + k}</span><span>${last.length}/${total} baris · ucapan ${acc.length ? Math.round(mean(acc)) + '%' : '–'} · terjemahan≈acuan ${ts.length ? Math.round(mean(ts)) + '%' : '–'}</span>`;
+    });
+    return h;
+  }
+  function renderSummary(){
+    const L = LOG.filter(e => e.session === currentSession());
+    const acc = L.filter(e => e.acc != null).map(e => e.acc);
+    const pr = L.filter(e => e.pron), tr = L.filter(e => e.trans);
+    const pct = (arr, v) => arr.length ? Math.round(100 * arr.filter(e => e === v).length / arr.length) + '%' : '–';
+    const snr = L.filter(e => e.mic && e.mic.snr_db != null).map(e => e.mic.snr_db);
+    const lat = L.filter(e => e.latency_ms != null).map(e => e.latency_ms);
+    $('summary').innerHTML =
+      `<span>Penguji</span><span>${esc($('testerName').value.trim() || '–')}</span>` +
+      `<span>Kalimat tercatat</span><span>${L.length}</span>` +
+      `<span>Kesesuaian ucapan dengan dialog</span><span>${acc.length ? Math.round(mean(acc)) + '% (rata-rata ' + acc.length + ' baris)' : '–'}</span>` +
+      `<span>Terjemahan ≈ acuan</span><span>${L.filter(e => e.tsim != null).length ? Math.round(mean(L.filter(e => e.tsim != null).map(e => e.tsim))) + '% (kemiripan kata)' : '–'}</span>` +
+      `<span>Diucapkan aplikasi</span><span>${L.filter(e => e.voiced).length} kalimat</span>` + dialogSummary(L) +
+      `<span>Ucapan dinilai benar</span><span>${pct(pr.map(e => e.pron), 'ok')} dari ${pr.length}</span>` +
+      `<span>Terjemahan dinilai benar</span><span>${pct(tr.map(e => e.trans), 'ok')} dari ${tr.length}</span>` +
+      `<span>Jernih mikrofon (SNR)</span><span>${snr.length ? Math.round(mean(snr)) + ' dB rata-rata' : '–'}</span>` +
+      `<span>Waktu terjemahan</span><span>${lat.length ? (mean(lat) / 1000).toFixed(1) + ' dtk rata-rata' : '–'}</span>`;
+  }
+  function reviewHtml(e){
+    const b = (k, v, t) => `<button data-id="${esc(e.id)}" data-k="${k}" data-v="${v}" class="${v} ${e[k] === v ? 'sel' : ''}">${t}</button>`;
+    return `<div class="rv"><span>Ucapan terdengar benar?</span>${b('pron','ok','✓')}${b('pron','bad','✗')}<span>Terjemahan benar?</span>${b('trans','ok','✓')}${b('trans','bad','✗')}` +
+      `<input data-id="${esc(e.id)}" class="noteIn" placeholder="Catatan (opsional)" value="${esc(e.note || '')}"></div>`;
+  }
+  function entryHtml(e, withReview){
+    const mic = e.mic ? ` · mic ${e.mic.level_db} dBFS, SNR ${e.mic.snr_db} dB` : '';
+    const tgt = e.target ? `<div class="heard">Dialog${e.dialog && e.dialog.length === 1 ? ' ' + e.dialog : ''}${e.line ? ' #' + e.line : ''}${e.role ? ' · ' + e.role + ' ' + e.pair : ''}: ${esc(e.target)}</div>` : '';
+    const acc = e.acc != null ? ` · kesesuaian ucapan ${e.acc}%` : '';
+    const ts = e.tsim != null ? ` · terjemahan≈acuan ${e.tsim}%` : '';
+    const sp = e.voiced ? `<div class="spoken">🔊 Diucapkan aplikasi (${esc(e.voice)}): ${esc(e.spoken_text)}</div>` : '';
+    return `<div class="h ${e.side}" data-eid="${esc(e.id)}"><span class="tr">${esc(e.translation || '⚠ Gagal menerjemahkan')}</span>${tgt}` +
+      `<div class="heard">Terdengar: ${esc(e.heard)}</div>${sp}${e.target ? diffHtml(e.target, e.heard, cfg[e.side].src) : ''}` +
+      `<div class="meta">${esc(e.engine || e.error || '')} · ${esc(e.stt || '')}${e.latency_ms != null ? ' · ' + e.latency_ms + ' ms' : ''}${acc}${ts}${mic}</div>` +
+      (withReview ? reviewHtml(e) : '') + `</div>`;
+  }
+  function addHist(e){
+    const h = $('hist'); h.insertAdjacentHTML('afterbegin', entryHtml(e, true));
+    while(h.children.length > 25) h.removeChild(h.lastChild);
+  }
+  function renderTestList(){
+    const L = LOG.filter(e => e.session === currentSession()).slice().reverse();
+    $('testList').innerHTML = L.length ? L.map(e => entryHtml(e, true)).join('') : 'Belum ada.';
+  }
+  function onReviewClick(ev){
+    const b = ev.target.closest('button[data-k]'); if(!b) return;
+    const e = findLog(b.dataset.id); if(!e) return;
+    e[b.dataset.k] = (e[b.dataset.k] === b.dataset.v) ? null : b.dataset.v;
+    saveLog(); renderSummary();
+    document.querySelectorAll(`button[data-id="${CSS.escape(e.id)}"][data-k="${b.dataset.k}"]`).forEach(x => x.classList.toggle('sel', e[b.dataset.k] === x.dataset.v));
+    renderResultIfCurrent(e);
+  }
+  function onNoteChange(ev){
+    const i = ev.target.closest('input.noteIn'); if(!i) return;
+    const e = findLog(i.dataset.id); if(!e) return;
+    e.note = i.value; saveLog();
+  }
+  ['hist','testList','scriptResult'].forEach(id => { $(id).addEventListener('click', onReviewClick); $(id).addEventListener('change', onNoteChange); });
+
+  function csvCell(v){ const s = String(v == null ? '' : v); return /[",\n\r;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+  function buildCsv(L){
+    const head = ['no','waktu','penguji','sesi','layar','arah','dialog','peran','nomor_pasangan','baris_dialog','naskah_dialog','terdengar','kesesuaian_ucapan_persen','terjemahan','acuan_terjemahan','kemiripan_terjemahan_acuan_persen','diucapkan_aplikasi','teks_diucapkan_aplikasi','suara_dipakai','mesin_terjemahan','mesin_suara','waktu_terjemah_ms','mic_level_dbfs','mic_bising_dbfs','mic_snr_db','mic_pecah_persen','ucapan_benar','terjemahan_benar','catatan'];
+    const rows = L.map((e, i) => [i + 1, e.t, e.tester, e.session, e.view === 'test' ? 'uji naskah' : 'bicara', e.side === 'me' ? 'Saya (ID→EN)' : 'Lawan (EN→ID)',
+      e.dialog || '', e.role || '', e.pair || '', e.line || '', e.target || '', e.heard, e.acc != null ? e.acc : '', e.translation, e.ref || '', e.tsim != null ? e.tsim : '',
+      e.voiced ? 'ya' : 'tidak', e.voiced ? e.spoken_text : '', e.voiced ? e.voice : '', e.engine, e.stt, e.latency_ms != null ? e.latency_ms : '',
+      e.mic ? e.mic.level_db : '', e.mic ? e.mic.noise_db : '', e.mic ? e.mic.snr_db : '', e.mic ? e.mic.clip_pct : '',
+      e.pron === 'ok' ? 'ya' : e.pron === 'bad' ? 'tidak' : '', e.trans === 'ok' ? 'ya' : e.trans === 'bad' ? 'tidak' : '', e.note || '']);
+    return '﻿' + [head].concat(rows).map(r => r.map(csvCell).join(',')).join('\r\n');
+  }
+  function buildText(L){
+    const acc = L.filter(e => e.acc != null).map(e => e.acc);
+    const out = [];
+    out.push('LAPORAN UJI PENERJEMAH SUARA');
+    out.push('Dibuat: ' + new Date().toLocaleString('id-ID'));
+    out.push('Perangkat: ' + UA);
+    out.push('Pengenal suara: ' + $('sttEngine').value + ' | Terjemahan: ' + $('engine').value + ' | Mode: ' + $('mode').value);
+    out.push('Jumlah kalimat: ' + L.length + (acc.length ? ' | Ketepatan ucapan rata-rata (naskah): ' + Math.round(mean(acc)) + '%' : ''));
+    out.push('');
+    L.forEach((e, i) => {
+      out.push('#' + (i + 1) + '  [' + (e.side === 'me' ? 'Saya ID→EN' : 'Lawan EN→ID') + ']  ' + e.tester + ' / ' + e.session + (e.dialog ? '  · Dialog ' + e.dialog + (e.role ? ' ' + e.role + ' ' + e.pair : '') : ''));
+      if(e.target) out.push('  Naskah    : ' + e.target + (e.line ? '   (baris dialog ' + e.line + ')' : ''));
+      out.push('  Terdengar : ' + e.heard + (e.acc != null ? '   (kesesuaian ucapan ' + e.acc + '%)' : ''));
+      out.push('  Terjemahan: ' + (e.translation || '(gagal)'));
+      if(e.ref) out.push('  Acuan     : ' + e.ref + (e.tsim != null ? '   (kemiripan ' + e.tsim + '%)' : ''));
+      out.push('  Diucapkan : ' + (e.voiced ? e.spoken_text + '   [' + e.voice + ']' : '(tidak diucapkan aplikasi)'));
+      out.push('  Mesin     : ' + e.engine + ' | ' + e.stt + (e.latency_ms != null ? ' | ' + e.latency_ms + ' ms' : '') + (e.mic ? ' | mic ' + e.mic.level_db + ' dBFS, SNR ' + e.mic.snr_db + ' dB' : ''));
+      out.push('  Penilaian : ucapan ' + (e.pron === 'ok' ? 'BENAR' : e.pron === 'bad' ? 'SALAH' : '-') + ' | terjemahan ' + (e.trans === 'ok' ? 'BENAR' : e.trans === 'bad' ? 'SALAH' : '-') + (e.note ? ' | catatan: ' + e.note : ''));
+      out.push('');
+    });
+    return out.join('\n');
+  }
+  function buildTranscript(L){
+    const out = ['TRANSKRIP PERCAKAPAN', 'Dibuat: ' + new Date().toLocaleString('id-ID'), 'Penguji: ' + (L[0] && L[0].tester || '-') + ' | Sesi: ' + (L[0] && L[0].session || '-'), ''];
+    L.forEach((e, i) => {
+      const who = e.side === 'me' ? 'Saya' : 'Lawan', to = e.side === 'me' ? 'Inggris' : 'Indonesia';
+      out.push('[' + String(i + 1).padStart(2, '0') + '] ' + who + (e.role ? ' · ' + e.role + ' ' + e.pair : '') + ' (terdengar): ' + e.heard);
+      if(e.target) out.push('     dialog       : ' + e.target + (e.acc != null ? '  → kesesuaian ' + e.acc + '%' : ''));
+      out.push('     → ' + to + '     : ' + (e.translation || '(gagal)') + (e.voiced ? '   🔊 diucapkan (' + e.voice + ')' : ''));
+      if(e.ref) out.push('     acuan        : ' + e.ref + (e.tsim != null ? '  → kemiripan ' + e.tsim + '%' : ''));
+      out.push('');
+    });
+    return out.join('\n');
+  }
+  function download(name, mime, content){
+    const blob = new Blob([content], { type: mime + ';charset=utf-8' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+  }
+  function stamp(){ const d = new Date(), p = n => String(n).padStart(2, '0'); return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()); }
+  function fname(ext){ return 'laporan-uji-' + (($('testerName').value.trim() || 'penguji').replace(/[^\w-]+/g, '_')) + '-' + stamp() + '.' + ext; }
+  function needLogs(){ const L = scopeLogs(); if(!L.length){ toast('Belum ada data untuk diekspor'); return null; } return L; }
+  $('expCsv').onclick = () => { const L = needLogs(); if(L) download(fname('csv'), 'text/csv', buildCsv(L)); };
+  $('expTxt').onclick = () => { const L = needLogs(); if(L) download(fname('txt'), 'text/plain', buildText(L)); };
+  $('expTrans').onclick = () => { const L = needLogs(); if(L) download(fname('transkrip.txt').replace('.transkrip.txt', '-transkrip.txt'), 'text/plain', buildTranscript(L)); };
+  $('expJson').onclick = () => { const L = needLogs(); if(L) download(fname('json'), 'application/json', JSON.stringify(L, null, 1)); };
+  $('expCopy').onclick = async () => {
+    const L = needLogs(); if(!L) return;
+    try{ await navigator.clipboard.writeText(buildText(L)); toast('Laporan disalin'); }catch(_){ toast('Tidak bisa menyalin. Pakai tombol Teks.'); }
+  };
+  $('expShare').onclick = async () => {
+    const L = needLogs(); if(!L) return;
+    try{
+      const f = new File([buildText(L)], fname('txt'), { type:'text/plain' });
+      if(navigator.canShare && navigator.canShare({ files:[f] })) await navigator.share({ files:[f], title:'Laporan uji penerjemah' });
+      else if(navigator.share) await navigator.share({ title:'Laporan uji penerjemah', text: buildText(L) });
+      else { download(fname('txt'), 'text/plain', buildText(L)); }
+    }catch(e){ if(e && e.name !== 'AbortError') toast('Tidak bisa membagikan: ' + e.message); }
+  };
+  $('expClear').onclick = () => {
+    if(!confirm('Hapus semua catatan uji di HP ini? Pastikan sudah diunduh.')) return;
+    LOG = []; saveLog(); $('hist').textContent = ''; renderSummary(); renderTestList(); $('scriptResult').textContent = '';
+    toast('Catatan dihapus');
+  };
+
+  // ================= proses satu kalimat =================
+  let lastDedupe = { k: '', t: 0 };
+  async function handle(side, text, meta, opts){
+    meta = meta || {}; opts = opts || {};
+    text = (text || '').trim(); if(!text) return null;
+    const ui = opts.ui || 'talk';
+    if(ui === 'talk'){
+      const k = side + '|' + text, now = Date.now();
+      if(lastDedupe.k === k && now - lastDedupe.t < 4000) return null;
+      lastDedupe = { k, t: now };
+    }
+    const c = cfg[side], t0 = performance.now();
+    if(ui === 'talk') setLive('Menerjemahkan…');
+    const entry = { id: Date.now() + '-' + Math.random().toString(36).slice(2, 6), t: new Date().toISOString(),
+      tester: $('testerName').value.trim(), session: currentSession(), view: ui, side, target: opts.target || null, ref: opts.ref || null,
+      heard: text, translation: '', engine: '', stt: meta.stt || (meta.typed ? 'ketik' : ''), latency_ms: null,
+      acc: null, tsim: null, line: opts.line || null, dialog: opts.dialog || null, role: opts.role || null, pair: opts.pair || null, voiced: false, spoken_text: '', voice: '', mic: meta.mic || null, pron: null, trans: null, note: '' };
+    if(opts.target) entry.acc = Math.round(accuracy(opts.target, text, c.src) * 100);
+    try{
+      const r = await translate(text, c.src, c.tgt);
+      entry.latency_ms = Math.round(performance.now() - t0);
+      entry.translation = r.text; entry.engine = r.engine;
+      if(opts.ref) entry.tsim = Math.round(tokenF1(r.text, opts.ref, c.tgt) * 100);
+    }catch(e){
+      entry.error = e.message; toast('Gagal menerjemahkan: ' + e.message);
+      addLog(entry); if(ui === 'talk') addHist(entry);
+      return entry;
+    }
+    history.push({ side, orig: text, tr: entry.translation });
+    const wantTts = ui === 'test' ? !!opts.speak : ttsFlags()[side];
+    entry.voiced = wantTts; entry.spoken_text = wantTts ? entry.translation : '';
+    addLog(entry);
+    if(ui === 'talk'){
+      $('lat').textContent = (entry.latency_ms / 1000).toFixed(1) + ' dtk';
+      $('eng').textContent = 'mesin: ' + entry.engine;
+      if($('subOn').checked) subShow(side, text, entry.translation, c.label + (side === 'me' ? ' (Indonesia):' : ' (Inggris):'));
+      else { sub.words = []; sub.text = ''; $('hint').style.display = 'none'; $('subBig').textContent = entry.translation; $('subBig').className = 'side-' + side; $('subOrig').textContent = c.label + ': ' + text; }
+      addHist(entry);
+    }
+    if(wantTts){
+      speaking = true; pauseListening(); if(ui === 'talk') setLive('🔊 Berbicara…');
+      try{ entry.voice = await speakSmart(entry.translation, c.ttsLang, side); }catch(_){ entry.voice = 'gagal'; }
+      speaking = false; resumeListening();
+      refreshEntry(entry);
+    } else if(ui === 'talk') subDone();
+    if(ui === 'talk'){ if(Listen.active) setLive('Mendengarkan… (' + cfg[Listen.side].label + ')'); else setLive('Selesai. Tekan tombol untuk lanjut.'); }
+    return entry;
+  }
+  let chain = Promise.resolve();
+  function queueTalk(side, text, meta){ chain = chain.then(() => handle(side, text, meta, { ui:'talk' })).catch(() => {}); }
+
+  // ================= tab Bicara =================
+  function toggleSide(side){
+    if(Listen.active && Listen.ui === 'talk' && Listen.side === side){ stopListening(); setLive('Berhenti.'); return; }
+    startListening(side, queueTalk, false, 'talk').then(ok => { if(ok) setLive($('sttEngine').value === 'openai' ? 'Menyesuaikan suara latar…' : 'Mendengarkan… (' + cfg[side].label + ')'); });
+  }
+  $('btnMe').onclick = () => toggleSide('me');
+  $('btnThem').onclick = () => toggleSide('them');
+  $('btnType').onclick = () => { unlockAudio(); $('typeRow').classList.toggle('open'); if($('typeRow').classList.contains('open')) $('typed').focus(); };
+  function sendTyped(){
+    unlockAudio();
+    const v = $('typed').value; if(!v.trim()) return;
+    $('typed').value = ''; handle($('typeSide').value, v, { typed:true }, { ui:'talk' });
+  }
+  $('sendTyped').onclick = sendTyped;
+  $('typed').addEventListener('keydown', e => { if(e.key === 'Enter') sendTyped(); });
+  $('btnClear').onclick = () => {
+    $('hist').textContent = ''; $('subBig').textContent = ''; $('subOrig').textContent = ''; $('hint').style.display = '';
+    history.length = 0; sub.words = []; sub.text = '';
+  };
+
+  // ================= tab Uji =================
+  const SCRIPTS = {
+    me: [
+      ['Halo, senang bertemu dengan Anda.', 'Hello, nice to meet you.'],
+      ['Nama saya Budi, saya editor video dari Indonesia.', 'My name is Budi, I am a video editor from Indonesia.'],
+      ['Saya bisa menyelesaikan video ini dalam lima hari.', 'I can finish this video in five days.'],
+      ['Harga totalnya empat ratus lima puluh dolar.', 'The total price is four hundred and fifty dollars.'],
+      ['Bisakah Anda mengirim file mentahnya hari Jumat?', 'Could you send the raw files on Friday?'],
+      ['Saya akan mengirim draf pertama besok pagi.', 'I will send the first draft tomorrow morning.'],
+      ['Maaf, bisa diulang sedikit lebih pelan?', 'Sorry, could you repeat that a little slower?'],
+      ['Revisi kedua sudah termasuk dalam harga.', 'The second revision is already included in the price.'],
+      ['Video ini untuk Instagram dengan format vertikal.', 'This video is for Instagram in vertical format.'],
+      ['Pertemuan kita hari Senin pukul delapan malam waktu Indonesia.', 'Our meeting is on Monday at eight in the evening Indonesian time.'],
+      ['Apakah Anda ingin musik yang tenang atau yang bersemangat?', 'Do you want calm music or energetic music?'],
+      ['Terima kasih, saya tunggu kabar dari Anda.', 'Thank you, I will wait to hear from you.']
+    ],
+    them: [
+      ['Hi, nice to meet you. Thanks for taking the time to talk with me today.', 'Halo, senang bertemu dengan Anda. Terima kasih sudah meluangkan waktu berbicara dengan saya hari ini.'],
+      ['I have three years of experience in video editing, mostly with Premiere Pro and DaVinci Resolve.', 'Saya punya pengalaman tiga tahun di bidang editing video, terutama dengan Premiere Pro dan DaVinci Resolve.'],
+      ['I can deliver the first draft within five days, and I include two rounds of revisions.', 'Saya bisa menyerahkan draf pertama dalam lima hari, dan sudah termasuk dua kali revisi.'],
+      ['The total price is four hundred and fifty dollars, and I need a fifty percent deposit to start.', 'Total harganya empat ratus lima puluh dolar, dan saya butuh uang muka lima puluh persen untuk mulai.'],
+      ['Could you send me the raw footage and the brand guidelines by Friday?', 'Bisakah Anda mengirimkan rekaman mentah dan panduan merek paling lambat hari Jumat?'],
+      ['Sorry, I did not catch that. Could you say it again a little slower, please?', 'Maaf, saya tidak menangkap itu. Bisakah Anda mengulanginya sedikit lebih pelan?'],
+      ['That sounds great! I am really excited to work on this project with you.', 'Kedengarannya bagus! Saya sangat bersemangat mengerjakan proyek ini bersama Anda.'],
+      ['For the intro, I suggest a short cinematic title, then a fast montage that matches the music beat.', 'Untuk intro, saya sarankan judul sinematik yang singkat, lalu montase cepat yang mengikuti irama musik.'],
+      ['Let me confirm: you want a sixty second video for Instagram, in vertical format, with English subtitles.', 'Biar saya pastikan: Anda ingin video enam puluh detik untuk Instagram, format vertikal, dengan subtitle bahasa Inggris.'],
+      ['What is your budget for this project, and when do you need it finished?', 'Berapa anggaran Anda untuk proyek ini, dan kapan Anda butuh proyek ini selesai?']
+    ]
+  };
+  const Q = 'Pertanyaan', J = 'Jawaban';
+  const DIALOGS = {
+    A: { desc: 'Dialog A · Saya bertanya dalam bahasa Indonesia, Lawan menjawab dalam bahasa Inggris (5 pertanyaan + 5 jawaban).', items: [
+      ['me',   'Boleh saya tahu video seperti apa yang Anda butuhkan?', 'May I know what kind of video you need?', Q, 1],
+      ['them', 'We need a sixty second promo video for our new coffee shop.', 'Kami butuh video promosi enam puluh detik untuk kedai kopi baru kami.', J, 1],
+      ['me',   'Apakah Anda sudah punya rekaman mentahnya?', 'Do you already have the raw footage?', Q, 2],
+      ['them', 'Yes, we have about two hours of footage, and I will send it by Friday.', 'Ya, kami punya sekitar dua jam rekaman, dan saya akan mengirimnya paling lambat hari Jumat.', J, 2],
+      ['me',   'Berapa anggaran yang Anda siapkan untuk proyek ini?', 'What budget have you prepared for this project?', Q, 3],
+      ['them', 'Our budget is five hundred dollars, and we can pay half upfront.', 'Anggaran kami lima ratus dolar, dan kami bisa membayar setengahnya di muka.', J, 3],
+      ['me',   'Kapan Anda butuh video ini selesai?', 'When do you need this video finished?', Q, 4],
+      ['them', 'We would like it ready before the grand opening on November fifteenth.', 'Kami ingin video ini siap sebelum pembukaan resmi pada tanggal lima belas November.', J, 4],
+      ['me',   'Apakah ada musik atau gaya khusus yang Anda sukai?', 'Is there any particular music or style you like?', Q, 5],
+      ['them', 'Something warm and cheerful, with soft acoustic guitar and no loud effects.', 'Sesuatu yang hangat dan ceria, dengan gitar akustik lembut dan tanpa efek yang keras.', J, 5]
+    ]},
+    B: { desc: 'Dialog B · Lawan bertanya dalam bahasa Inggris, Saya menjawab dalam bahasa Indonesia (5 pertanyaan + 5 jawaban).', items: [
+      ['them', 'How many years of experience do you have in video editing?', 'Berapa tahun pengalaman Anda di bidang editing video?', Q, 1],
+      ['me',   'Saya punya pengalaman empat tahun, terutama untuk video promosi dan konten media sosial.', 'I have four years of experience, mainly in promotional videos and social media content.', J, 1],
+      ['them', 'Which software do you use for editing?', 'Software apa yang Anda gunakan untuk mengedit?', Q, 2],
+      ['me',   'Saya memakai Premiere Pro dan DaVinci Resolve, kadang juga After Effects untuk animasi teks.', 'I use Premiere Pro and DaVinci Resolve, and sometimes After Effects for text animation.', J, 2],
+      ['them', 'How long will it take you to finish the first draft?', 'Berapa lama Anda akan menyelesaikan draf pertama?', Q, 3],
+      ['me',   'Draf pertama bisa selesai dalam tiga hari setelah saya menerima semua file.', 'The first draft can be finished within three days after I receive all the files.', J, 3],
+      ['them', 'Does your price include revisions?', 'Apakah harga Anda sudah termasuk revisi?', Q, 4],
+      ['me',   'Ya, harganya sudah termasuk dua kali revisi, dan revisi tambahan dikenakan biaya lima puluh dolar.', 'Yes, the price includes two rounds of revisions, and extra revisions cost fifty dollars.', J, 4],
+      ['them', 'What time zone are you in, and when can we have a call?', 'Anda berada di zona waktu mana, dan kapan kita bisa menelepon?', Q, 5],
+      ['me',   'Saya di zona waktu Indonesia bagian barat, dan saya bisa menelepon besok pukul sembilan pagi waktu saya.', 'I am in the Western Indonesia time zone, and I can have a call tomorrow at nine in the morning my time.', J, 5]
+    ]}
+  };
+  const Script = { mode:'A', idx:{ A:0, B:0, custom:0, me:0, them:0 }, custom: [] };
+  function parseDialog(text){
+    const out = []; let side = 'me';
+    String(text || '').split(/\r?\n/).forEach(raw => {
+      let line = raw.trim(); if(!line) return;
+      let s = side;
+      const m = line.match(/^(saya|s|me|lawan|l|them)\s*[:：]\s*(.*)$/i);
+      if(m){ s = /^(saya|s|me)$/i.test(m[1]) ? 'me' : 'them'; line = m[2]; }
+      side = s === 'me' ? 'them' : 'me';
+      const parts = line.split('|'), t = parts[0].trim(), ref = (parts[1] || '').trim();
+      if(t) out.push({ side: s, t, ref });
+    });
+    return out;
+  }
+  function scriptItems(){
+    if(Script.mode === 'me') return SCRIPTS.me.map(x => ({ side:'me', t:x[0], ref:x[1] }));
+    if(Script.mode === 'them') return SCRIPTS.them.map(x => ({ side:'them', t:x[0], ref:x[1] }));
+    if(Script.mode === 'A' || Script.mode === 'B') return DIALOGS[Script.mode].items.map(x => ({ side:x[0], t:x[1], ref:x[2], role:x[3], n:x[4] }));
+    return Script.custom;
+  }
+  function curItem(){ return scriptItems()[Script.idx[Script.mode]] || null; }
+  function renderScript(){
+    const a = scriptItems(), i = Script.idx[Script.mode], it = a[i];
+    $('scriptSel').value = Script.mode;
+    $('customCard').style.display = Script.mode === 'custom' ? 'block' : 'none';
+    $('scriptResult').textContent = ''; $('scriptStatus').textContent = '';
+    $('btnNext').classList.remove('pri', 'pulse');
+    $('scriptDesc').textContent = DIALOGS[Script.mode] ? DIALOGS[Script.mode].desc : Script.mode === 'custom' ? 'Dialog buatan sendiri.' : Script.mode === 'me' ? 'Kalimat uji bahasa Indonesia (arah Saya).' : 'Kalimat uji bahasa Inggris (arah Lawan).';
+    if(!it){
+      $('scriptWho').style.display = 'none';
+      $('scriptPos').textContent = Script.mode === 'custom' ? 'Belum ada dialog. Tulis di kotak di bawah lalu tekan "Simpan dan pakai".' : '';
+      $('scriptTarget').textContent = ''; $('scriptMean').textContent = ''; $('btnRec').disabled = true; return;
+    }
+    $('btnRec').disabled = false; $('scriptWho').style.display = 'block';
+    $('scriptWho').className = 'who ' + it.side;
+    $('scriptWho').textContent = it.side === 'me' ? '🔵 Giliran SAYA · ucapkan dalam bahasa Indonesia' : '🟢 Giliran LAWAN · ucapkan dalam bahasa Inggris';
+    $('scriptPos').textContent = 'Baris ' + (i + 1) + ' dari ' + a.length + (it.role ? ' · ' + it.role + ' ' + it.n + ' dari 5' : '');
+    $('scriptTarget').textContent = it.t;
+    $('scriptMean').textContent = it.side === 'them' && it.ref ? 'Artinya: ' + it.ref : '';
+  }
+  function resultHtml(e){
+    const cls = e.acc >= 90 ? 'good' : e.acc >= 70 ? 'mid' : 'low';
+    const tcls = e.tsim >= 70 ? 'good' : e.tsim >= 45 ? 'mid' : 'low';
+    return `<div class="card" style="margin-top:12px"><div>Kesesuaian ucapan dengan dialog: <span class="acc ${cls}">${e.acc != null ? e.acc + '%' : '–'}</span></div>` +
+      diffHtml(e.target, e.heard, cfg[e.side].src) +
+      `<div class="kv"><span>Terjemahan aplikasi</span><span><b>${esc(e.translation || '⚠ gagal')}</b></span><span>Terjemahan acuan</span><span>${esc(e.ref || '–')}</span>` +
+      (e.tsim != null ? `<span>Terjemahan ≈ acuan</span><span class="acc ${tcls}" style="font-size:15px">${e.tsim}% (kemiripan kata)</span>` : '') +
+      (e.voiced ? `<span>Diucapkan aplikasi</span><span>${esc(e.spoken_text)} (${esc(e.voice)})</span>` : '') +
+      (e.mic ? `<span>Mikrofon</span><span>${e.mic.level_db} dBFS · SNR ${e.mic.snr_db} dB</span>` : '') + `</div>` + reviewHtml(e) + `</div>`;
+  }
+  function renderResultIfCurrent(e){ /* tombol sudah diperbarui langsung di DOM */ }
+  $('scriptSel').addEventListener('change', () => { if(Listen.active) stopListening(); Script.mode = $('scriptSel').value; renderScript(); });
+  $('btnRestart').onclick = () => {
+    if(Listen.active) stopListening();
+    Script.idx[Script.mode] = 0; history.length = 0; renderScript(); toast('Dimulai dari baris 1. Konteks percakapan direset.');
+  };
+  $('btnPrev').onclick = () => { if(Listen.active) stopListening(); const n = scriptItems().length || 1; Script.idx[Script.mode] = (Script.idx[Script.mode] + n - 1) % n; renderScript(); };
+  $('btnNext').onclick = () => { if(Listen.active) stopListening(); const n = scriptItems().length || 1; Script.idx[Script.mode] = (Script.idx[Script.mode] + 1) % n; renderScript(); };
+  $('btnRec').onclick = async () => {
+    if(Listen.active && Listen.ui === 'test'){ stopListening(); $('scriptStatus').textContent = 'Dihentikan.'; return; }
+    const item = curItem(); if(!item) return;
+    const line = Script.idx[Script.mode] + 1;
+    $('scriptResult').textContent = '';
+    $('scriptStatus').textContent = 'Menyiapkan mikrofon… bicaralah setelah muncul "Mendengarkan", lalu diam sebentar.';
+    const ok = await startListening(item.side, async (side, text, meta) => {
+      if(text === null){ $('scriptStatus').textContent = 'Tidak ada suara terdengar. Coba lagi.'; return; }
+      $('scriptStatus').textContent = 'Menerjemahkan…';
+      const e = await handle(side, text, meta, { ui:'test', target:item.t, ref:item.ref || null, speak: $('testSpeak').checked, line, dialog: Script.mode, role: item.role || null, pair: item.n || null });
+      $('scriptStatus').textContent = e ? 'Selesai. Periksa hasilnya di bawah, lalu tekan ▶ untuk baris berikutnya.' : '';
+      if(e){ $('scriptResult').innerHTML = resultHtml(e); $('btnNext').classList.add('pri', 'pulse'); }
+    }, true, 'test');
+    if(ok) $('scriptStatus').textContent = 'Mendengarkan… bacakan kalimat di atas.';
+  };
+  $('btnSampleDialog').onclick = () => { $('customDialog').value = DIALOGS.A.items.map(x => (x[0] === 'me' ? 'Saya: ' : 'Lawan: ') + x[1] + ' | ' + x[2]).join('\n'); };
+  $('btnUseDialog').onclick = () => {
+    const items = parseDialog($('customDialog').value);
+    lsSet('tr_dialog', $('customDialog').value);
+    Script.custom = items; Script.idx.custom = 0;
+    $('customInfo').textContent = items.length ? items.length + ' baris dipakai (' + items.filter(x => x.side === 'me').length + ' giliran Saya, ' + items.filter(x => x.side === 'them').length + ' giliran Lawan).' : 'Tidak ada baris yang terbaca.';
+    renderScript(); toast(items.length ? 'Dialog dipakai' : 'Dialog kosong');
+  };
+  $('customDialog').value = lsGet('tr_dialog') || '';
+  Script.custom = parseDialog($('customDialog').value);
+  $('btnNewSession').onclick = () => {
+    if(Listen.active) stopListening();
+    $('sessionName').value = defaultSessionName(); lsSet('tr_session', $('sessionName').value);
+    $('testerName').focus(); renderSummary(); renderTestList(); $('scriptResult').textContent = '';
+    toast('Sesi baru dimulai. Isi nama penguji.');
+  };
+
+  // ================= tab Suara saya =================
+  $('readText').textContent = 'Selamat pagi semuanya! Hari ini saya ingin bercerita tentang pekerjaan saya sebagai editor video. Setiap proyek dimulai dengan mendengarkan kebutuhan klien: apa pesan yang ingin disampaikan, siapa penontonnya, dan di mana video akan ditayangkan. Setelah itu saya memilih musik, menyusun potongan gambar, lalu menambahkan teks dan warna supaya hasilnya enak ditonton. Kadang prosesnya cepat, kadang butuh waktu lebih lama, terutama kalau ada banyak revisi. Menurut saya, komunikasi yang jelas itu kuncinya. Apakah ini sudah sesuai dengan yang Anda bayangkan? Kalau belum, tolong beri tahu saya sekarang, ya! Saya senang sekali bisa bekerja sama dengan orang dari berbagai negara. Setiap hari saya belajar hal baru, mulai dari cara bicara yang sopan, cara menawar harga dengan tenang, sampai cara menjelaskan ide yang rumit dengan kalimat sederhana. Terima kasih sudah mendengarkan, dan sampai jumpa di video berikutnya.';
+
+  const Mic = { cap:null, mode:null, frames:[], rate:48000, timer:null };
+  async function micStart(mode, profile, meterId, maxSec, onDone){
+    if(Listen.active) stopListening();
+    Mic.mode = mode; Mic.frames = []; Mic.onDone = onDone; Mic.t0 = performance.now();
+    try{
+      Mic.cap = new Capture(profile, (x, rate) => {
+        Mic.rate = rate; Mic.frames.push(x); setMeter(meterId, rmsPeak(x).rms);
+        const sec = Mic.frames.length * x.length / rate;
+        if(mode === 'rec') $('recInfo').textContent = 'Merekam… ' + sec.toFixed(0) + ' dtk (target 60–120 dtk)';
+      });
+      await Mic.cap.start();
+    }catch(e){ Mic.cap = null; micError(e); return false; }
+    Mic.timer = setTimeout(() => micStop(), maxSec * 1000);
+    return true;
+  }
+  function micStop(){
+    if(!Mic.cap) return;
+    clearTimeout(Mic.timer); Mic.cap.stop(); Mic.cap = null;
+    ['meterMic', 'meterRec'].forEach(id => setMeter(id, 0));
+    const frames = Mic.frames, rate = Mic.rate, cb = Mic.onDone; Mic.frames = [];
+    if(cb) cb(frames, rate);
+  }
+  $('btnMicTest').onclick = async () => {
+    if(Mic.cap && Mic.mode === 'test'){ micStop(); return; }
+    $('micVerdict').textContent = '';
+    const ok = await micStart('test', micProfile(), 'meterMic', 8, (frames, rate) => {
+      $('btnMicTest').textContent = '🎚️ Mulai tes (8 detik)';
+      renderVerdict($('micVerdict'), analyzeFrames(frames, rate), 'Tes memakai mutu mikrofon yang dipilih di Pengaturan (' + (micProfile() === 'clean' ? 'jernih otomatis' : 'mentah') + ').');
+      $('micHint').textContent = 'Ulangi bila perlu. Pastikan hasilnya "Bagus" sebelum merekam sampel.';
+    });
+    if(ok){ $('btnMicTest').textContent = '⏹ Selesai'; $('micHint').textContent = 'Ucapkan: "satu, dua, tiga … sepuluh" dengan suara biasa.'; }
+  };
+  let sampleBlob = null, sampleUrl = null;
+  function setSample(blob, label){
+    sampleBlob = blob;
+    if(sampleUrl) URL.revokeObjectURL(sampleUrl);
+    sampleUrl = URL.createObjectURL(blob);
+    const p = $('samplePrev'); p.src = sampleUrl; p.style.display = 'block';
+    $('recInfo').textContent = label;
+  }
+  $('btnRecSample').onclick = async () => {
+    if(Mic.cap && Mic.mode === 'rec'){ micStop(); return; }
+    $('recVerdict').textContent = '';
+    const profile = $('sampleProfile').value;
+    const ok = await micStart('rec', profile, 'meterRec', 150, (frames, rate) => {
+      $('btnRecSample').textContent = '⏺ Rekam ulang';
+      const a = analyzeFrames(frames, rate);
+      if(!a || a.dur < 3){ $('recInfo').textContent = 'Rekaman terlalu pendek.'; renderVerdict($('recVerdict'), a); return; }
+      let x = resample(concatF32(frames), rate, 24000);
+      let pk = 0; for(let i = 0; i < x.length; i++){ const v = Math.abs(x[i]); if(v > pk) pk = v; }
+      const gain = pk > 0 ? Math.min(10, 0.7 / pk) : 1;                 // rapikan level (puncak sekitar -3 dB)
+      if(gain !== 1) for(let i = 0; i < x.length; i++) x[i] *= gain;
+      const wav = new Blob([encodeWav(x, 24000)], { type:'audio/wav' });
+      setSample(wav, 'Terekam ' + a.dur.toFixed(0) + ' dtk, WAV 24 kHz lossless (' + (wav.size / 1e6).toFixed(1) + ' MB)' + (a.dur < 45 ? ' · disarankan minimal 60 dtk' : ''));
+      renderVerdict($('recVerdict'), a);
+    });
+    if(ok){ $('btnRecSample').textContent = '⏹ Selesai merekam'; $('recInfo').textContent = 'Merekam… baca naskah di atas.'; }
+  };
+  $('sampleFile').onchange = e => { const f = e.target.files[0]; if(f){ setSample(f, 'File: ' + f.name + ' (' + (f.size / 1e6).toFixed(1) + ' MB)'); } };
+  $('cloneBtn').onclick = async () => {
+    const st = $('cloneStatus');
+    if(!elKey()){ st.textContent = 'Isi API key ElevenLabs di ⚙️ dulu.'; openSheet(); return; }
+    if(!sampleBlob){ st.textContent = 'Rekam atau pilih sampel suara dulu (langkah 2).'; return; }
+    if(!$('consent').checked){ st.textContent = 'Centang persetujuan bahwa ini suara kamu sendiri.'; return; }
+    st.textContent = 'Membuat klon…'; $('cloneBtn').disabled = true;
+    try{
+      const t = sampleBlob.type || '';
+      const ext = t.includes('wav') ? 'wav' : (t.includes('mpeg') || t.includes('mp3')) ? 'mp3' : t.includes('ogg') ? 'ogg' : t.includes('mp4') ? 'm4a' : 'webm';
+      const fd = new FormData();
+      fd.append('name', $('cloneName').value.trim() || 'Suara Saya');
+      fd.append('files', sampleBlob, sampleBlob.name || ('suara.' + ext));
+      fd.append('remove_background_noise', $('sampleProfile').value === 'clean' ? 'false' : 'true');
+      const r = await fetch('https://api.elevenlabs.io/v1/voices/add', { method:'POST', headers:{ 'xi-api-key': elKey() }, body: fd });
+      if(!r.ok) throw await elErr(r);
+      const j = await r.json();
+      $('voiceId').value = j.voice_id; lsSet('tr_voice', j.voice_id);
+      $('useEL').checked = true; lsSet('tr_useel', '1');
+      st.textContent = '✅ Klon dibuat dan dipasang. Coba langkah 4.';
+    }catch(e){ st.textContent = '⚠ Gagal membuat klon: ' + e.message; }
+    $('cloneBtn').disabled = false;
+  };
+  $('btnPlayClone').onclick = async () => {
+    unlockAudio();
+    const st = $('voiceStatus');
+    if(!elKey() || !$('voiceId').value.trim()){ st.textContent = 'Isi API key ElevenLabs dan buat klon dulu.'; return; }
+    st.textContent = 'Memutar suara klon…';
+    try{ await elSpeak($('voiceTestText').value.trim() || 'Hello.'); st.textContent = ''; }catch(e){ st.textContent = '⚠ Gagal: ' + e.message; }
+  };
+  $('btnPlayOrig').onclick = () => {
+    if(!sampleUrl){ $('voiceStatus').textContent = 'Belum ada rekaman sampel.'; return; }
+    unlockAudio(); player.src = sampleUrl; player.playbackRate = 1; const p = player.play(); if(p && p.catch) p.catch(() => {});
+  };
+
+  // ================= pengaturan, tab, tombol umum =================
+  function showView(v){
+    if(Listen.active) stopListening();
+    ['talk', 'test', 'voice'].forEach(x => {
+      $('view-' + x).classList.toggle('on', x === v);
+      document.querySelector('#tabs [data-view="' + x + '"]').classList.toggle('on', x === v);
+    });
+    if(v === 'test'){ renderScript(); renderSummary(); renderTestList(); }
+    if(v === 'voice') updEl();
+  }
+  $('tabs').addEventListener('click', e => { const b = e.target.closest('button[data-view]'); if(b) showView(b.dataset.view); });
+  $('btnSettings').onclick = openSheet;
+  $('btnClose').onclick = closeSheet;
+  $('sheet').addEventListener('click', e => { if(e.target === $('sheet')) closeSheet(); });
+  document.querySelectorAll('button[data-paste]').forEach(b => b.onclick = async () => {
+    const id = b.dataset.paste;
+    try{ const t = await navigator.clipboard.readText(); $(id).value = (t || '').trim(); $(id).dispatchEvent(new Event('input')); toast('Tertempel'); }
+    catch(_){ toast('Tidak bisa membaca clipboard. Tempel manual di kolom.'); $(id).focus(); }
+  });
+
+  bind('keyOpenAI', 'tr_key_openai', '');
+  bind('keyClaude', 'tr_key_claude', '');
+  bind('elkey', 'tr_elkey', '', updEl);
+  bind('sttEngine', 'tr_stt', 'openai');
+  bind('modelSTT', 'tr_model_stt', 'gpt-4o-mini-transcribe');
+  bind('micProfile', 'tr_micprofile', 'clean');
+  bind('sens', 'tr_sens', '1', () => { $('sensVal').textContent = parseFloat($('sens').value).toFixed(1); });
+  $('sensVal').textContent = parseFloat($('sens').value).toFixed(1);
+  bind('engine', 'tr_engine', 'openai');
+  bind('modelOpenAI', 'tr_model_openai', 'gpt-4o-mini');
+  bind('modelClaude', 'tr_model_claude', 'claude-haiku-5-5');
+  bind('mode', 'tr_mode', 'face');
+  bind('rate', 'tr_rate', '1', () => { $('rateVal').textContent = parseFloat($('rate').value).toFixed(1); });
+  $('rateVal').textContent = parseFloat($('rate').value).toFixed(1);
+  bind('subSize', 'tr_subsize', '30', () => { $('sizeVal').textContent = $('subSize').value; document.documentElement.style.setProperty('--subsize', $('subSize').value + 'px'); });
+  $('sizeVal').textContent = $('subSize').value; document.documentElement.style.setProperty('--subsize', $('subSize').value + 'px');
+  bind('subOn', 'tr_subon', true);
+  bind('keepAwake', 'tr_awake', true);
+  bind('elModel', 'tr_elmodel', 'eleven_flash_v2_5');
+  bind('voiceId', 'tr_voice', '');
+  bind('useEL', 'tr_useel', false);
+  bind('testerName', 'tr_tester', '', renderSummary);
+  bind('sessionName', 'tr_session', defaultSessionName(), () => { renderSummary(); renderTestList(); });
+  bind('testSpeak', 'tr_testspeak', false);
+  bind('exportScope', 'tr_scope', 'session');
+  updEl(); renderScript(); renderSummary();
+  document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && Listen.active) keepAwake(true); });
+  if('speechSynthesis' in window) speechSynthesis.onvoiceschanged = () => {};
+
+  if(window.__TEST__) window.__t = { DIALOGS, hist: () => history, sub, subShow, subSet, subByChar, subDone, speak, elSpeak, handle, ttsFlags, Listen, startListening, stopListening, LOG: () => LOG,
+    normText, wer, accuracy, tokenF1, diffHtml, parseDialog, analyzeFrames, verdictFor, encodeWav, resample, buildCsv, buildText, buildTranscript, scopeLogs, SCRIPTS, Script, scriptItems, showView };
+})();
+</script>
+</body>
+</html>
