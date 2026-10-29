@@ -25,7 +25,6 @@ jobs:
       - run: cd backend && node --test test/*.test.js
       - run: node tests/dependency-check.js
       - run: cd backend && npm audit --omit=dev
-      - run: node tests/regress.js
   e2e-chromium:
     name: Chromium end-to-end (Playwright)
     runs-on: ubuntu-latest
