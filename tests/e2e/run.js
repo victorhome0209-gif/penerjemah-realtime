@@ -59,7 +59,7 @@ test('UI: satu tombol utama, tanpa tombol Lawan Bicara, tanpa klaim "audio meeti
   check('UI: hanya satu tombol "Saya Bicara"', (await p.$$('#vbMic')).length === 1 && !btns.some(t => /lawan bicara/i.test(t)));
   check('UI: tidak ada tombol Lawan Bicara', !btns.some(t => /lawan bicara/i.test(t)), JSON.stringify(btns));
   check('UI: tidak ada klaim "tersambung" sebelum sesi', !/tersambung/i.test(await p.evaluate(() => document.body.innerText.split('Informasi AI')[0].replace(/Terhubung|tidak tersambung/g, ''))));
-  check('UI: status awal idle dan lencana Gratis', (await state(p)) === 'idle' && (await txt(p, '#planBadge')) === 'Gratis');
+  check('UI: status awal idle, lencana "Belum terhubung", tanpa label Gratis', (await state(p)) === 'idle' && (await txt(p, '#planBadge')) === 'Belum terhubung' && !/gratis/i.test(await p.evaluate(() => { const c = document.body.cloneNode(true); c.querySelectorAll('script,style').forEach(n => n.remove()); return c.textContent; })));
   check('UI: tanpa galat JS saat dimuat', p.errors.length === 0, p.errors.join('|'));
   await p.context().close();
 });
@@ -215,12 +215,14 @@ test('Kesalahan: kredit habis dan layanan dinonaktifkan ditampilkan jelas', asyn
   check('Kredit habis: kredit tidak negatif dan tidak ada panggilan terjemahan', (await S.api.credits(code)) === 0);
   await p.click('#vbStop'); await p.context().close();
 
+  // V1.2: bila administrator mematikan layanan, sesi tidak dimulai sama sekali (diperiksa sebelum persetujuan dan mikrofon)
   const code2 = await S.api.mkCode(50); await S.api.adminCall('/admin/kill', { enabled: false });
-  const p2 = await newPage(b, S); await connect(p2, S, code2); await startSession(p2);
-  await p2.waitForFunction(() => /dinonaktifkan/.test(document.getElementById('vbHint').textContent), null, { timeout: 25000 });
-  check('Dinonaktifkan admin: pesan jelas', true);
-  await S.api.adminCall('/admin/kill', { enabled: true });
-  await p2.click('#vbStop'); await p2.context().close();
+  try {
+    const p2 = await newPage(b, S); await connect(p2, S, code2); await p2.click('#vbMic');
+    await p2.waitForFunction(() => /dinonaktifkan/.test(document.getElementById('vbHint').textContent), null, { timeout: 25000 });
+    check('Dinonaktifkan admin: pesan jelas, sesi tidak dimulai, mikrofon tidak diminta', (await state(p2)) === 'idle' && (await p2.evaluate(() => window.__gum)) === 0 && (await txt(p2, '#vbHint')).startsWith('Layanan AI belum terhubung.'), await txt(p2, '#vbHint'));
+    await p2.context().close();
+  } finally { await S.api.adminCall('/admin/kill', { enabled: true }); }
 });
 
 test('Responsif: HP (Pixel 7) dan desktop tanpa scroll horizontal, tombol terjangkau', async (b, S) => {
@@ -242,31 +244,114 @@ test('Responsif: HP (Pixel 7) dan desktop tanpa scroll horizontal, tombol terjan
 });
 
 
-test('Mode Gratis (tanpa backend): satu tombol, lawan otomatis, giliran Saya (SpeechRecognition dipalsukan)', async (b, S) => {
-  const stub = () => {
-    class FakeSR { constructor() { (window.__srs = window.__srs || []).push(this); } start() { window.__srLang = this.lang; } stop() { setTimeout(() => this.onend && this.onend(), 0); } }
-    window.SpeechRecognition = window.webkitSpeechRecognition = FakeSR;
-    window.__srEmit = text => { const r = window.__srs[window.__srs.length - 1]; r.onresult({ resultIndex: 0, results: [Object.assign([{ transcript: text }], { isFinal: true })] }); };
-    speechSynthesis.speak = u => { (window.__spoken = window.__spoken || []).push([u.lang, u.text]); setTimeout(() => u.onend && u.onend(), 50); };
-  };
-  const p = await newPage(b, S, { init: stub });
-  await p.route('https://api.mymemory.translated.net/**', route => { const u = new URL(route.request().url()); const pair = u.searchParams.get('langpair'); route.fulfill({ contentType: 'application/json', body: JSON.stringify({ responseStatus: 200, responseData: { translatedText: pair + ':' + u.searchParams.get('q') } }) }); });
-  const calls0 = S.mock.calls.stt + S.mock.calls.translate + S.mock.calls.tts;
-  await startSession(p);
-  check('Gratis: sesi mendengarkan lawan dalam Inggris (en-US)', (await state(p)) === 'listen' && (await p.evaluate(() => window.__srLang)) === 'en-US');
-  await p.evaluate(() => window.__srEmit('Could you explain the proposal?'));
-  await waitCard(p, 'them', 8000);
-  check('Gratis: kartu Lawan berisi teks asli dan terjemahan', (await txt(p, 'article.vb-turn.them [data-k="orig"]')) === 'Could you explain the proposal?' && /^en\|id:Could/.test(await txt(p, 'article.vb-turn.them [data-k="tr"]')), await txt(p, 'article.vb-turn.them [data-k="tr"]'));
+// ---------------------------------------------------------------------------------------------
+// V1.2 API-only: tidak ada mode Gratis. Penyadap di bawah mendeteksi pemakaian jalur lama (SpeechRecognition, suara perangkat).
+const OFF = 'Layanan AI belum terhubung.';
+const spyInit = () => {
+  window.__freeUse = [];
+  class SpySR { constructor() { window.__freeUse.push('SpeechRecognition'); } start() { window.__freeUse.push('SpeechRecognition.start'); } stop() {} }
+  window.SpeechRecognition = window.webkitSpeechRecognition = SpySR;
+  try { speechSynthesis.speak = () => window.__freeUse.push('speechSynthesis.speak'); } catch (_) {}
+};
+const freeUse = p => p.evaluate(() => window.__freeUse || []);
+const noFreeNet = p => !p.reqs.some(r => /mymemory|translated\.net/i.test(r.url));
+const bodyText = p => p.evaluate(() => { const c = document.body.cloneNode(true); c.querySelectorAll('script,style').forEach(n => n.remove()); return c.textContent; });
+const closedPort = () => new Promise(r => { const sv = net.createServer(); sv.listen(0, '127.0.0.1', () => { const q = sv.address().port; sv.close(() => r(q)); }); });
+const withStorage = (base, token) => new Function('try{localStorage.setItem("vb_api",' + JSON.stringify(base) + ');sessionStorage.setItem("vb_token",' + JSON.stringify(token) + ');}catch(_){}');
+
+test('V1.2 tanpa backend: gagal aman dan informatif, tanpa jalur gratis, QA Lab dan tes mikrofon tetap berfungsi', async (b, S) => {
+  const p = await newPage(b, S, { init: spyInit });
+  await p.route('https://api.mymemory.translated.net/**', route => route.abort());
+  check('Tanpa backend: layar utama menampilkan "' + OFF + '"', (await txt(p, '#vbTitle')) === OFF, await txt(p, '#vbTitle'));
+  check('Tanpa backend: lencana "Belum terhubung" dan tidak ada kata "Gratis" di UI', (await txt(p, '#planBadge')) === 'Belum terhubung' && !/gratis/i.test(await bodyText(p)), await txt(p, '#planBadge'));
+  check('Tanpa backend: tetap satu tombol "Saya Bicara"', (await p.$$('#vbMic')).length === 1 && (await txt(p, '#vbMicLabel')) === 'Saya Bicara');
+  await p.click('#vbMic'); await sleep(600);
+  check('Tanpa backend: Saya Bicara tidak memulai sesi (status idle, tanpa dialog persetujuan)', (await state(p)) === 'idle' && !(await p.$('#vbConsent.open')));
+  check('Tanpa backend: mikrofon tidak diminta', (await p.evaluate(() => window.__gum)) === 0);
+  check('Tanpa backend: pesan "' + OFF + '" tampil di status dan petunjuk', (await txt(p, '#live')).startsWith(OFF) && (await txt(p, '#vbHint')).startsWith(OFF), await txt(p, '#live'));
+  check('Tanpa backend: tidak ada klaim sedang mendengarkan atau berhasil menerjemahkan', !/Mikrofon aktif|Mendengarkan lawan|Memproses|terjemahan/i.test((await txt(p, '#vbTitle')) + (await txt(p, '#live'))) && (await p.$$('article.vb-turn')).length === 0);
+  check('Tanpa backend: tidak ada panggilan jaringan ke /api/ atau MyMemory', !p.reqs.some(r => /\/api\//.test(r.url)) && noFreeNet(p));
+  check('Tanpa backend: SpeechRecognition dan suara perangkat tidak dipakai', (await freeUse(p)).length === 0, JSON.stringify(await freeUse(p)));
+  // QA Lab: bagian offline tetap jalan, rekam butuh layanan
+  await p.click('#btnSettings'); await p.click('summary:has-text("Alat uji")'); await p.click('#btnOpenLab');
+  check('QA Lab (offline): naskah dialog tampil', (await txt(p, '#scriptTarget') || '').length > 5);
+  await p.click('#btnRec'); await sleep(400);
+  check('QA Lab: rekam tanpa layanan ditolak dengan pesan jelas, mikrofon tidak dibuka', (await txt(p, '#scriptStatus')).startsWith(OFF) && (await p.evaluate(() => window.__gum)) === 0, await txt(p, '#scriptStatus'));
+  const rv = await p.evaluate(() => { const T = window.__t; return [T.wer('hello world today', 'hello world', 'en') > 0, T.normText('It costs $5', 'en').includes('dollars'), T.diffHtml('a b', 'a c', 'en').includes('mark')]; });
+  check('QA Lab (offline): WER, normalisasi, dan diff tetap bekerja', rv.every(Boolean), JSON.stringify(rv));
+  await p.click('#btnBackTalk');
+  // pengaturan mikrofon (tes 8 detik, hanya lokal)
+  await p.click('#btnSettings'); await p.click('summary:has-text("Audio dan mikrofon")');
+  const n0 = p.reqs.length; await p.click('#btnMicTest');
+  await p.waitForFunction(() => document.getElementById('micVerdict').textContent.length > 10, null, { timeout: 14000 });
+  check('Pengaturan mikrofon: tes lokal memberi hasil tanpa layanan AI dan tanpa jaringan', p.reqs.slice(n0).filter(r => !/^data:|^blob:/.test(r.url)).length === 0 && (await p.evaluate(() => window.__gum)) >= 1);
+  check('Tanpa backend: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
+test('V1.2 server tidak terjangkau: sesi tidak dimulai, pesan jelas, tanpa jalur gratis', async (b, S) => {
+  const dead = 'http://127.0.0.1:' + await closedPort();
+  const p = await newPage(b, S, { init: new Function('(' + spyInit.toString() + ')();' + 'try{localStorage.setItem("vb_api",' + JSON.stringify(dead) + ');sessionStorage.setItem("vb_token","VB-TOKENUJI000001");}catch(_){}') });
+  await p.route('https://api.mymemory.translated.net/**', route => route.abort());
   await p.click('#vbMic');
-  check('Gratis: Saya Bicara menjeda lawan dan memakai id-ID', (await state(p)) === 'me' && (await p.evaluate(() => window.__srLang)) === 'id-ID');
-  await p.evaluate(() => window.__srEmit('Saya akan menjelaskan rencananya.'));
-  await waitCard(p, 'me', 8000);
-  await p.waitForFunction(() => document.getElementById('vbStatus').dataset.s === 'listen', null, { timeout: 10000 });
-  check('Gratis: kartu Saya dan suara perangkat Inggris dipakai', /^id\|en:Saya/.test(await txt(p, 'article.vb-turn.me [data-k="tr"]')) && (await p.evaluate(() => (window.__spoken || []).some(x => x[0] === 'en-US'))));
-  check('Gratis: kembali mendengarkan lawan (en-US)', (await p.evaluate(() => window.__srLang)) === 'en-US');
-  check('Gratis: tidak memanggil backend sama sekali', S.mock.calls.stt + S.mock.calls.translate + S.mock.calls.tts === calls0 && !p.reqs.some(r => /\/api\//.test(r.url)));
-  check('Gratis: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
-  await p.click('#vbStop'); check('Gratis: Hentikan mengembalikan ke idle', (await state(p)) === 'idle');
+  await p.waitForFunction(o => document.getElementById('live').textContent.startsWith(o), OFF, { timeout: 12000 });
+  check('Server mati: pesan memuat "' + OFF + '" dan alasan tidak terjangkau', /tidak terjangkau/i.test(await txt(p, '#live')), await txt(p, '#live'));
+  check('Server mati: status idle, mikrofon tidak diminta, tidak ada dialog persetujuan', (await state(p)) === 'idle' && (await p.evaluate(() => window.__gum)) === 0 && !(await p.$('#vbConsent.open')));
+  check('Server mati: tidak ada kartu, tidak ada klaim berhasil', (await p.$$('article.vb-turn')).length === 0 && !/Mikrofon aktif/.test(await txt(p, '#vbTitle')));
+  check('Server mati: tidak ada jalur gratis (SpeechRecognition, suara perangkat, MyMemory)', (await freeUse(p)).length === 0 && noFreeNet(p), JSON.stringify(await freeUse(p)));
+  check('Server mati: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
+test('V1.2 tanpa/salah autentikasi: akses AI ditolak server dan sesi tidak dimulai', async (b, S) => {
+  const p = await newPage(b, S);
+  const c0 = S.mock.calls.stt + S.mock.calls.translate + S.mock.calls.tts;
+  const st = await p.evaluate(async B => {
+    const call = async (path, h, body) => (await fetch(B + path, { method: 'POST', headers: Object.assign({ 'Idempotency-Key': 'uji-' + Math.random().toString(36).slice(2, 12), 'Content-Type': 'application/json' }, h), body })).status;
+    return [await call('/api/translate', {}, '{"text":"hi","src":"en","tgt":"id"}'), await call('/api/translate', { Authorization: 'Bearer VB-SALAH0000000000' }, '{"text":"hi","src":"en","tgt":"id"}'),
+      await call('/api/tts', {}, '{"text":"hi","lang":"en"}'), await call('/api/stt?lang=en', { 'Content-Type': 'audio/wav' }, 'x')];
+  }, S.B);
+  check('Auth: translate, tts, dan stt tanpa/dengan kode salah dijawab 401', st.every(x => x === 401), JSON.stringify(st));
+  check('Auth: OpenAI tidak dipanggil sama sekali', S.mock.calls.stt + S.mock.calls.translate + S.mock.calls.tts === c0);
+  const q = await newPage(b, S, { init: withStorage(S.B, 'VB-SALAH0000000000') });
+  await q.click('#vbMic');
+  await q.waitForFunction(o => document.getElementById('live').textContent.startsWith(o), OFF, { timeout: 10000 });
+  check('Auth: kode akses salah -> "' + OFF + '" + penjelasan, sesi tidak dimulai', /Kode akses salah/.test(await txt(q, '#live')) && (await state(q)) === 'idle' && (await q.evaluate(() => window.__gum)) === 0, await txt(q, '#live'));
+  check('Auth: kode salah dihapus dari sessionStorage dan lencana kembali "Belum terhubung"', (await q.evaluate(() => sessionStorage.getItem('vb_token'))) === null && (await txt(q, '#planBadge')) === 'Belum terhubung');
+  check('Auth: kode salah tidak memicu panggilan berbayar', !q.reqs.some(r => /\/api\/(stt|translate|tts)/.test(r.url)) && S.mock.calls.stt + S.mock.calls.translate + S.mock.calls.tts === c0);
+});
+
+test('V1.2 layanan dinonaktifkan administrator (PAID_API_ENABLED=false): sesi tidak dimulai', async (b, S) => {
+  const S2 = await startAll({ credits: 50, env: { PAID_API_ENABLED: 'false' } });
+  try {
+    const p = await newPage(b, S2); await connect(p, S2);
+    await p.click('#vbMic');
+    await p.waitForFunction(o => document.getElementById('live').textContent.startsWith(o), OFF, { timeout: 10000 });
+    check('Dinonaktifkan: pesan memuat "' + OFF + '" dan penjelasan administrator', /dinonaktifkan oleh administrator/.test(await txt(p, '#live')), await txt(p, '#live'));
+    check('Dinonaktifkan: tidak ada sesi, mikrofon, atau panggilan berbayar', (await state(p)) === 'idle' && (await p.evaluate(() => window.__gum)) === 0 && S2.mock.calls.stt + S2.mock.calls.translate + S2.mock.calls.tts === 0 && !p.reqs.some(r => /\/api\/(stt|translate|tts)/.test(r.url)));
+  } finally { await S2.close(); }
+});
+
+test('V1.2 kesalahan API: kegagalan ditampilkan apa adanya, tanpa cadangan gratis', async (b, S) => {
+  const p = await newPage(b, S, { init: spyInit });
+  await p.route('https://api.mymemory.translated.net/**', route => route.abort());
+  try {
+    await connect(p, S);
+    S.mock.fail.translate = 400;
+    await startSession(p);
+    await p.waitForFunction(() => /Gagal menerjemahkan/.test((document.querySelector('article.vb-turn.them [data-k="chip"]') || {}).textContent || ''), null, { timeout: 30000 });
+    check('Galat terjemahan: kartu menampilkan kegagalan, terjemahan kosong', /Gagal menerjemahkan/.test(await txt(p, 'article.vb-turn.them [data-k="chip"]')) && (await p.evaluate(() => document.querySelector('article.vb-turn.them [data-k="tr"]').classList.contains('dim'))));
+    check('Galat terjemahan: teks asli tetap ditampilkan, tombol koreksi aktif', (await txt(p, 'article.vb-turn.them [data-k="orig"]')) === 'Could you explain the proposal?' && !(await p.evaluate(() => document.querySelector('article.vb-turn.them [data-a="edit"]').disabled)));
+    check('Galat terjemahan: tidak ada MyMemory, SpeechRecognition, atau suara perangkat', noFreeNet(p) && (await freeUse(p)).length === 0, JSON.stringify(await freeUse(p)));
+    check('Galat terjemahan: sesi tetap mendengarkan (tidak macet)', (await state(p)) === 'listen');
+    delete S.mock.fail.translate; S.mock.fail.tts = 400;
+    await p.click('#vbMic'); await waitCard(p, 'me');
+    await p.waitForFunction(() => /Suara gagal/.test((document.querySelector('article.vb-turn.me [data-k="chip"]') || {}).textContent || ''), null, { timeout: 20000 });
+    check('Galat suara: terjemahan tertulis tetap tampil, kegagalan suara ditandai', (await txt(p, 'article.vb-turn.me [data-k="tr"]')) === 'I will explain the plan.' && /Suara gagal/.test(await txt(p, 'article.vb-turn.me [data-k="chip"]')));
+    check('Galat suara: tidak jatuh ke suara perangkat', (await freeUse(p)).length === 0 && noFreeNet(p), JSON.stringify(await freeUse(p)));
+    await p.waitForFunction(() => document.getElementById('vbStatus').dataset.s === 'listen', null, { timeout: 15000 });
+    check('Galat suara: kembali mendengarkan lawan', (await state(p)) === 'listen');
+    check('Galat API: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+    await p.click('#vbStop');
+  } finally { delete S.mock.fail.translate; delete S.mock.fail.tts; }
 });
 
 test('Suara Saya (klon suara): modul dipertahankan sebagai fitur Pro NONAKTIF, rekam sampel lokal tanpa jaringan', async (b, S) => {

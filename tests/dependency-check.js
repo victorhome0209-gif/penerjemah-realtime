@@ -22,7 +22,7 @@ check('Frontend: tidak ada @import atau url(http...) di CSS', !/@import|url\(\s*
 check('Frontend: CSP script-src hanya self/inline (tanpa host luar)', /script-src 'self' 'unsafe-inline';/.test(html));
 check('Frontend: CSP object-src none dan base-uri none', /object-src 'none'/.test(html) && /base-uri 'none'/.test(html));
 const ext = [...new Set([...html.matchAll(/https?:\/\/[A-Za-z0-9.-]+/g)].map(m => m[0]))].filter(u => !/^https?:\/\/(localhost|127\.0\.0\.1)$/.test(u));
-console.log('INFO  Host eksternal yang disebut di index.html (hanya panggilan data, bukan kode): ' + (ext.join(', ') || '-'));
+check('Frontend: tidak menyebut host eksternal apa pun (V1.2: semua lewat backend sendiri)', ext.length === 0, ext.join(', '));
 const lockPath = path.join(ROOT, 'package-lock.json');
 check('Akar: package-lock.json ada', fs.existsSync(lockPath));
 if (fs.existsSync(lockPath)) {

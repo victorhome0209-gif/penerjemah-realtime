@@ -1,3 +1,5 @@
+> V1.2: hasil terbaru ada di `docs/V1.2.md` dan `docs/bukti/ringkasan-validasi.txt`. Angka di bawah adalah catatan versi sebelumnya.
+
 # Hasil uji VocalBridge V1
 
 ## Validasi terbaru (V1.1.1, `node tests/run-all.js`, 29 Okt 2026) — exit akhir 0

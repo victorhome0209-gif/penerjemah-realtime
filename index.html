@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#060b19">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: data:; connect-src https: http://localhost:* http://127.0.0.1:*; object-src 'none'; base-uri 'none'; form-action 'none'">
-<script>window.VB_CONFIG = { API_BASE: "" }; /* alamat publik backend HTTPS (bukan rahasia). Kosong = mode Gratis. */</script>
+<script>window.VB_CONFIG = { API_BASE: "" }; /* alamat publik backend HTTPS (bukan rahasia). Kosong = layanan AI belum terhubung. */</script>
 <title>VocalBridge</title>
 <style>
   :root{--bg:#060b19;--card:rgba(255,255,255,.055);--card2:rgba(255,255,255,.09);--line:rgba(255,255,255,.13);--txt:#eaf0ff;--mut:#98a6c8;--me:#3d7bff;--them:#10b981;--warn:#f59e0b;--bad:#ef4444;--ok:#10b981}
@@ -130,7 +130,7 @@
   .vb-title span{font-size:13px;color:var(--mut)}
   .vb-pro{display:inline-flex;gap:6px;align-items:center;padding:7px 13px;border-radius:99px;border:1px solid rgba(255,255,255,.18);background:var(--glass);font-weight:700;font-size:13px;color:#ffd77a;white-space:nowrap}
   .vb-pro svg{width:15px;height:15px}
-  .vb-pro.free{color:var(--mut)}
+  .vb-pro.off{color:var(--mut)}
   .vb-icon{width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,.18);background:var(--glass);color:var(--txt);display:grid;place-items:center;padding:0;cursor:pointer}
   .vb-icon svg{width:20px;height:20px}
   #btnSettings{font-size:0}
@@ -215,7 +215,7 @@
   <header class="vbh">
     <svg class="vb-logo" viewBox="0 0 48 40" aria-hidden="true"><g stroke="currentColor" stroke-width="3.4" stroke-linecap="round"><line x1="4" y1="16" x2="4" y2="24"/><line x1="11" y1="10" x2="11" y2="30"/><line x1="18" y1="4" x2="18" y2="36"/><line x1="25" y1="9" x2="25" y2="31"/><line x1="32" y1="13" x2="32" y2="27"/><line x1="39" y1="8" x2="39" y2="32"/><line x1="45" y1="15" x2="45" y2="25"/></g></svg>
     <div class="vb-title"><b>VocalBridge</b><span>Penerjemah meeting pribadi</span></div>
-    <span class="vb-pro free" id="planBadge">Gratis</span>
+    <span class="vb-pro off" id="planBadge">Belum terhubung</span>
     <button class="vb-icon" id="btnSettings" aria-label="Pengaturan"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
   </header>
 
@@ -338,7 +338,7 @@
 
   <!-- ===================== SUARA SAYA (FITUR PRO, NONAKTIF) ===================== -->
   <section class="view" id="view-voice">
-    <div class="backbar"><button class="sm" id="btnBackTalk2">← Percakapan</button><b>Suara Saya</b><span class="vb-pro free">Pro · nonaktif</span></div>
+    <div class="backbar"><button class="sm" id="btnBackTalk2">← Percakapan</button><b>Suara Saya</b><span class="vb-pro off">Pro · nonaktif</span></div>
     <div class="scroll">
       <div class="verdict warn" id="voiceGate">Fitur Pro nonaktif sampai backend dan persetujuan siap.</div>
       <p class="note">Modul klon suara dipertahankan, tetapi pembuatan klon dan suara klon baru aktif setelah backend menyediakannya dan persetujuan siap. Tidak ada kunci ElevenLabs di browser. Merekam sampel di bawah hanya menyimpan suara di perangkat ini.</p>
@@ -393,13 +393,13 @@
     <details open id="secBackend">
       <summary>Akses backend (uji)</summary>
       <div>
-        <p class="note">Tanpa kode akses, aplikasi memakai <b>mode Gratis</b>: pengenal suara bawaan browser, terjemahan MyMemory, dan suara perangkat. Dengan kode akses dari administrator, ucapan diproses OpenAI lewat server VocalBridge.</p>
+        <p class="note">VocalBridge hanya bekerja lewat layanan AI di server (OpenAI untuk pengenal suara, terjemahan, dan suara). Isi alamat server dan kode akses dari administrator. Tanpa itu, penerjemahan tidak berjalan dan tidak ada mesin cadangan.</p>
         <label for="vbApi">Alamat server (HTTPS)</label>
         <input id="vbApi" type="url" placeholder="https://…" autocomplete="off" inputmode="url">
         <label for="vbCode">Kode akses uji (dari administrator)</label>
         <input id="vbCode" type="password" placeholder="VB-…" autocomplete="off">
         <div class="sheetbtns"><button class="pri" id="vbSave">Simpan dan cek</button><button class="sm" id="vbDisconnect">Putuskan</button></div>
-        <div class="note" id="vbConnInfo" style="margin-top:8px">Belum terhubung. Mode Gratis aktif.</div>
+        <div class="note" id="vbConnInfo" style="margin-top:8px">Layanan AI belum terhubung.</div>
         <p class="note"><b>Jangan</b> mengisi API key OpenAI atau penyedia lain di sini. Kunci penyedia hanya ada di server. Kode akses disimpan untuk tab ini saja dan hilang saat tab ditutup.</p>
       </div>
     </details>
@@ -462,8 +462,7 @@
         <details style="margin-top:12px">
           <summary>Informasi AI pihak ketiga</summary>
           <div class="note" style="line-height:1.6">
-            <b>Mode dengan kode akses:</b> ucapan dikirim lewat server VocalBridge ke OpenAI untuk diubah menjadi teks, diterjemahkan, dan dibacakan. VocalBridge tidak menyimpan audio. Kebijakan OpenAI berlaku untuk data yang diterimanya.<br>
-            <b>Mode Gratis:</b> pengenal suara bawaan Chrome mengirim audio ke Google. Teks yang diterjemahkan dikirim ke layanan MyMemory.<br>
+            <b>Cara kerja:</b> ucapan dikirim lewat server VocalBridge ke OpenAI untuk diubah menjadi teks, diterjemahkan, dan dibacakan. VocalBridge tidak menyimpan audio. Kebijakan OpenAI berlaku untuk data yang diterimanya.<br>
             <b>Suara AI:</b> suara terjemahan dibuat oleh AI, bukan suara manusia.<br>
             <b>Lawan bicara:</b> beri tahu bahwa Anda memakai penerjemah AI dan ikuti aturan platform (Zoom, Google Meet, Upwork).<br>
             <b>Ketepatan:</b> terjemahan mesin bisa salah. Periksa angka, nama, dan tanggal penting secara tertulis.
@@ -496,8 +495,7 @@
     <h2 id="vbConsentTitle">Sebelum mulai</h2>
     <ul>
       <li>Mikrofon (dan audio tab bila Anda memilihnya) dipakai hanya selama sesi berjalan. Tombol Hentikan melepasnya.</li>
-      <li><b>Dengan kode akses:</b> ucapan dikirim lewat server VocalBridge ke OpenAI untuk jadi teks, terjemahan, dan suara. VocalBridge tidak menyimpan audio. Kebijakan OpenAI berlaku untuk data yang diterimanya.</li>
-      <li><b>Mode Gratis:</b> pengenal suara Chrome mengirim audio ke Google, dan teks terjemahan dikirim ke MyMemory.</li>
+      <li>Ucapan dikirim lewat server VocalBridge ke OpenAI untuk jadi teks, terjemahan, dan suara. VocalBridge tidak menyimpan audio. Kebijakan OpenAI berlaku untuk data yang diterimanya.</li>
       <li>Suara terjemahan dari OpenAI dibuat oleh AI, bukan suara manusia.</li>
       <li>Riwayat teks tersimpan di perangkat hanya bila Anda menyalakannya. Audio tidak pernah disimpan.</li>
       <li>Anda yang memberi tahu lawan bicara dan memastikan penggunaan sesuai aturan platform (Zoom, Meet, Upwork).</li>
@@ -514,7 +512,6 @@
   const $ = id => document.getElementById(id);
   const UA = navigator.userAgent;
   const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(UA);
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const cfg = {
     me:   { src:'id', tgt:'en', recLang:'id-ID', ttsLang:'en-US', label:'Saya' },
     them: { src:'en', tgt:'id', recLang:'en-US', ttsLang:'id-ID', label:'Lawan' }
@@ -655,7 +652,7 @@
 
   // ================= dukungan browser =================
   const hasMic = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-  if(hasMic || SR){ $('support').textContent = 'mic siap'; $('support').classList.add('ok'); }
+  if(hasMic){ $('support').textContent = 'mic siap'; $('support').classList.add('ok'); }
   else { $('support').textContent = 'mic tidak ada'; $('support').classList.add('bad'); setLive('Browser ini tidak mendukung mikrofon. Android: pakai Chrome. iPhone: pakai Safari.'); }
 
   // ================= audio keluaran =================
@@ -663,7 +660,6 @@
   const SILENT = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
   function unlockAudio(){
     try{ player.src = SILENT; const p = player.play(); if(p && p.catch) p.catch(() => {}); }catch(_){}
-    try{ if('speechSynthesis' in window){ const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } }catch(_){}
   }
   async function keepAwake(on){
     try{
@@ -840,8 +836,9 @@
     if(method === 'POST') h['Idempotency-Key'] = uuid();
     if(o.json !== undefined){ h['Content-Type'] = 'application/json'; body = JSON.stringify(o.json); }
     let last = null;
-    for(let attempt = 0; attempt < 2; attempt++){
-      const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 25000);
+    const tries = o.tries || 2, limit = o.timeout || 25000;
+    for(let attempt = 0; attempt < tries; attempt++){
+      const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), limit);
       try{
         const r = await fetch(VB.base() + path, { method, headers: h, body, signal: ctl.signal });
         clearTimeout(to);
@@ -866,35 +863,31 @@
     const r = await vbCall('/api/me', { method: 'GET' });
     VB.me = await r.json(); renderPlan(); return VB.me;
   }
+  // ---- layanan AI: satu-satunya jalur STT, terjemahan, dan suara. Tidak ada cadangan gratis. ----
+  const MSG_OFF = 'Layanan AI belum terhubung.';
+  function offError(detail){ const e = new Error(MSG_OFF + (detail ? ' ' + detail : '')); e.vb = true; e.status = 0; e.off = true; return e; }
+  function svcMsg(e){ return e && e.status === 0 && !/^Layanan AI/.test(e.message || '') ? MSG_OFF + ' ' + e.message : (e && e.message) || String(e); }
   function renderPlan(){
     const b = $('planBadge'); if(!b) return;
-    if(VB.ready() && VB.me){ b.textContent = 'Uji · ' + VB.me.credits + ' kredit'; b.classList.remove('free'); }
-    else if(VB.ready()){ b.textContent = 'Uji'; b.classList.remove('free'); }
-    else { b.textContent = 'Gratis'; b.classList.add('free'); }
+    if(VB.ready() && VB.me){ b.textContent = 'Uji · ' + VB.me.credits + ' kredit'; b.classList.remove('off'); }
+    else if(VB.ready()){ b.textContent = 'Uji'; b.classList.remove('off'); }
+    else { b.textContent = 'Belum terhubung'; b.classList.add('off'); }
+    if(typeof Conv !== 'undefined' && !Conv.on && Conv.state === 'idle') setState('idle');
   }
-  const sttEngineNow = () => VB.ready() ? 'backend' : 'browser';
 
   // ================= terjemahan =================
-  async function translateFree(text, src, tgt){
-    const r = await fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(text) + '&langpair=' + src + '|' + tgt);
-    if(!r.ok) throw new Error('HTTP ' + r.status);
-    const j = await r.json();
-    if(j.responseStatus && Number(j.responseStatus) !== 200) throw new Error(j.responseDetails || 'gagal');
-    return { text: decode(j.responseData.translatedText), engine:'MyMemory (gratis)' };
-  }
   async function translate(text, src, tgt){
-    if(VB.ready()){
-      const context = history.slice(-4).map(h => ({ side: h.side, text: h.orig }));
-      const r = await vbCall('/api/translate', { json: { text, src, tgt, context } });
-      const j = await r.json(); noteCredits(r);
-      return { text: j.text, engine: j.engine || 'OpenAI (backend)' };
-    }
-    return translateFree(text, src, tgt);
+    if(!VB.ready()) throw offError('Hubungkan di Pengaturan.');
+    const context = history.slice(-4).map(h => ({ side: h.side, text: h.orig }));
+    const r = await vbCall('/api/translate', { json: { text, src, tgt, context } });
+    const j = await r.json(); noteCredits(r);
+    return { text: j.text, engine: j.engine || 'OpenAI (backend)' };
   }
 
   // ================= pengenal suara =================
   const HALLU = /(thanks for watching|thank you for watching|terima kasih (telah|sudah) menonton|subtitles? by|amara\.org)/i;
   async function sttBackend(samples, rate, lang){
+    if(!VB.ready()) throw offError('Hubungkan di Pengaturan.');
     const wav = encodeWav(resample(samples, rate, 16000), 16000);
     const r = await vbCall('/api/stt?lang=' + lang, { body: new Blob([wav], { type:'audio/wav' }), headers: { 'Content-Type':'audio/wav' } });
     const j = await r.json(); noteCredits(r);
@@ -902,37 +895,12 @@
   }
 
   // ================= mendengarkan: satu pintu untuk dua mesin =================
-  const Listen = { active:false, side:null, once:false, onText:null, ui:'talk', engine:null, rec:null, cap:null, vad:null, timeout:null };
+  const Listen = { active:false, side:null, once:false, onText:null, ui:'test', cap:null, vad:null, timeout:null };
   function micInfo(a){ return a ? { dur:+a.dur.toFixed(1), level_db:Math.round(a.speechDb), noise_db:Math.round(a.noiseDb), snr_db:Math.round(a.snr), clip_pct:+a.clipPct.toFixed(2) } : null; }
   function deliver(side, text, meta){
     if(!Listen.active) return;
     if(Listen.once){ const cb = Listen.onText; stopListening(); cb(side, text, meta); }
     else Listen.onText(side, text, meta);
-  }
-  function buildRec(side){
-    const r = new SR();
-    r.lang = cfg[side].recLang; r.continuous = !IS_MOBILE && !Listen.once; r.interimResults = true; r.maxAlternatives = 1;
-    r.onresult = ev => {
-      if(speaking) return;
-      let interim = '';
-      for(let i = ev.resultIndex; i < ev.results.length; i++){
-        const res = ev.results[i];
-        if(res.isFinal) deliver(side, res[0].transcript, { stt:'browser' });
-        else interim += res[0].transcript;
-      }
-      if(interim){ setLive('🎧 ' + interim); if(Listen.ui === 'talk' && $('subOn').checked && !speaking) $('subOrig').textContent = '🎧 ' + interim; }
-    };
-    r.onerror = ev => {
-      if(ev.error === 'not-allowed' || ev.error === 'service-not-allowed'){ setLive('Izin mikrofon ditolak. Buka pengaturan situs di browser lalu izinkan mikrofon.'); toast('Izin mikrofon ditolak'); stopListening(); }
-      else if(ev.error === 'network'){ setLive('Layanan suara browser tidak terjangkau. Cek internet.'); }
-      else if(ev.error === 'audio-capture'){ setLive('Mikrofon tidak terdeteksi.'); stopListening(); }
-    };
-    r.onend = () => {
-      if(Listen.active && !speaking && Listen.rec === r){
-        setTimeout(() => { if(Listen.active && !speaking && Listen.rec === r){ try{ r.start(); }catch(_){} } }, IS_MOBILE ? 250 : 0);
-      }
-    };
-    return r;
   }
   function micProfile(){ return $('micProfile').value; }
   async function startVAD(side){
@@ -990,15 +958,11 @@
   async function startListening(side, onText, once, ui){
     stopListening();
     unlockAudio();
-    const eng = sttEngineNow();
-    if(eng === 'backend' && !hasMic){ setLive('Browser ini tidak mendukung mikrofon.'); return false; }
-    if(eng === 'browser' && !SR){ setLive('Browser ini tidak punya pengenal suara bawaan. Isi kode akses di Pengaturan atau pakai Chrome.'); toast('Pakai Chrome atau isi kode akses di Pengaturan'); return false; }
-    Object.assign(Listen, { active:true, side, once:!!once, onText, ui: ui || 'talk', engine: eng });
-    try{
-      if(eng === 'browser'){ Listen.rec = buildRec(side); Listen.rec.start(); }
-      else { await startVAD(side); }
-    }catch(e){ Listen.active = false; micError(e); refreshButtons(); return false; }
-    if(Listen.ui === 'talk') $('meterTalkBox').style.display = eng === 'backend' ? 'block' : 'none';
+    if(!VB.ready()){ setLive(MSG_OFF + ' Hubungkan di Pengaturan.'); toast(MSG_OFF); refreshButtons(); return false; }
+    if(!hasMic){ setLive('Browser ini tidak mendukung mikrofon.'); return false; }
+    Object.assign(Listen, { active:true, side, once:!!once, onText, ui: ui || 'test' });
+    try{ await startVAD(side); }
+    catch(e){ Listen.active = false; micError(e); refreshButtons(); return false; }
     if(Listen.once){
       Listen.timeout = setTimeout(() => {
         if(Listen.active){ const cb = Listen.onText, s = Listen.side; stopListening(); cb(s, null, { timeout:true }); }
@@ -1010,16 +974,14 @@
   function stopListening(){
     Listen.active = false;
     if(Listen.timeout){ clearTimeout(Listen.timeout); Listen.timeout = null; }
-    const r = Listen.rec; Listen.rec = null; if(r){ try{ r.stop(); }catch(_){} }
     if(Listen.cap){ Listen.cap.stop(); Listen.cap = null; }
     Listen.vad = null;
     setMeter('meterTalk', 0); setMeter('meterTest', 0);
-    try{ if('speechSynthesis' in window) speechSynthesis.cancel(); }catch(_){}
     try{ player.pause(); }catch(_){}
     speaking = false; keepAwake(false); stopTimer(); refreshButtons();
   }
-  function pauseListening(){ if(Listen.active && Listen.engine === 'browser' && Listen.rec){ try{ Listen.rec.stop(); }catch(_){} } if(Listen.vad){ const v = Listen.vad; v.state = 'idle'; v.pre = []; v.buf = []; v.onCount = 0; } }
-  function resumeListening(){ if(Listen.active && Listen.engine === 'browser'){ Listen.rec = buildRec(Listen.side); try{ Listen.rec.start(); }catch(_){} } }
+  function pauseListening(){ if(Listen.vad){ const v = Listen.vad; v.state = 'idle'; v.pre = []; v.buf = []; v.onCount = 0; } }
+  function resumeListening(){}
   function startTimer(){ if(!timer){ timer = setInterval(() => { secs++; $('timer').textContent = fmt(secs); }, 1000); } }
   function stopTimer(){ if(timer && !Listen.active){ clearInterval(timer); timer = null; } }
   function refreshButtons(){
@@ -1027,25 +989,9 @@
     $('btnRec').textContent = t ? '⏹ Berhenti' : '🎤 Rekam kalimat ini';
   }
 
-  // ================= suara perangkat dan suara AI =================
-  function speak(text, lang){
-    return new Promise(res => {
-      if(!('speechSynthesis' in window)) return res();
-      const u = new SpeechSynthesisUtterance(text);
-      const rate = parseFloat($('rate').value);
-      u.lang = lang; u.rate = rate;
-      const v = speechSynthesis.getVoices().find(v => v.lang.toLowerCase().replace('_','-').startsWith(lang.slice(0, 2)));
-      if(v) u.voice = v;
-      let fb = null;
-      const mine = () => sub.words.length && sub.text === text;
-      u.onstart = () => { fb = setTimeout(() => { if(mine() && !sub.boundary) subEstimate(Math.max(0.8, text.length / (14 * rate))); }, 500); };
-      u.onboundary = e => { if(mine()){ sub.boundary = true; subClearTimer(); subByChar(e.charIndex); } };
-      u.onend = u.onerror = () => { clearTimeout(fb); if(mine()) subDone(); res(); };
-      speechSynthesis.speak(u);
-    });
-  }
-  // ================= suara terjemahan: OpenAI lewat backend, atau suara perangkat =================
+  // ================= suara terjemahan: hanya OpenAI lewat backend (tanpa suara perangkat) =================
   async function ttsBackend(text, lang){
+    if(!VB.ready()) throw offError('Hubungkan di Pengaturan.');
     const r = await vbCall('/api/tts', { json: { text, lang } });
     noteCredits(r);
     return await r.blob();
@@ -1062,12 +1008,8 @@
   const BCP = { id:'id-ID', en:'en-US' };
   async function speakSmart(text, lang, side){
     const l2 = String(lang).slice(0, 2);
-    if(VB.ready()){
-      try{ await playBlob(await ttsBackend(text, l2)); return 'OpenAI (backend)'; }
-      catch(e){ toast('Suara AI gagal, dipakai suara perangkat: ' + e.message); }
-    }
-    await speak(text, BCP[l2] || lang);
-    return 'suara perangkat';
+    try{ await playBlob(await ttsBackend(text, l2)); return 'OpenAI (backend)'; }
+    catch(e){ toast('Suara AI gagal: ' + svcMsg(e)); throw e; }
   }
 
   function ttsFlags(){ const m = $('mode').value; return { me: m !== 'text', them: m === 'headset' }; }
@@ -1175,7 +1117,7 @@
     out.push('LAPORAN UJI PENERJEMAH SUARA');
     out.push('Dibuat: ' + new Date().toLocaleString('id-ID'));
     out.push('Perangkat: ' + UA);
-    out.push('Pengenal suara: ' + sttEngineNow() + ' | Terjemahan: ' + (VB.ready() ? 'backend (OpenAI)' : 'MyMemory') + ' | Mode: ' + $('mode').value);
+    out.push('Pengenal suara: ' + (VB.ready() ? 'backend (OpenAI)' : 'belum terhubung') + ' | Terjemahan: ' + (VB.ready() ? 'backend (OpenAI)' : 'belum terhubung') + ' | Mode: ' + $('mode').value);
     out.push('Jumlah kalimat: ' + L.length + (acc.length ? ' | Ketepatan ucapan rata-rata (naskah): ' + Math.round(mean(acc)) + '%' : ''));
     out.push('');
     L.forEach((e, i) => {
@@ -1350,7 +1292,7 @@
   // ---- keadaan sesi ----
   const CONV = [];                // giliran sesi ini: hanya teks, tidak pernah audio
   const CARDS = new Map();        // id -> pengendali kartu
-  const Conv = { on:false, state:'idle', free:false, src:'mic', micStream:null, tabStream:null, taps:[], vadThem:null, vadMe:null,
+  const Conv = { on:false, state:'idle', src:'mic', micStream:null, tabStream:null, taps:[], vadThem:null, vadMe:null,
     chain: Promise.resolve(), gen:0, cool:0, tabSeen:0, tabOk:false, meTimer:null };
   const Sess = { id: uuid(), start: new Date().toISOString() };
   const hhmm = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return p(d.getHours()) + ':' + p(d.getMinutes()); };
@@ -1360,26 +1302,28 @@
   function stateText(s){
     const talkHint = 'Ketuk untuk mulai berbicara (dalam Bahasa Indonesia)';
     if(s === 'listen'){
-      if(Conv.src === 'tab' && !Conv.free && !Conv.tabOk)
+      if(Conv.src === 'tab' && !Conv.tabOk)
         return { title:'Menunggu audio dari tab…', sub:'Belum ada suara terdeteksi dari tab yang dibagikan. Putar audio atau tunggu lawan bicara.', mode:'Mode: English → Indonesia', label:'Saya Bicara', hint: talkHint };
-      return { title: Conv.src === 'tab' && !Conv.free ? 'Audio tab terverifikasi' : 'Mikrofon aktif',
-        sub: Conv.src === 'tab' && !Conv.free ? 'Mendengarkan lawan bicara secara otomatis' : 'Mendengarkan lawan lewat mikrofon (Inggris)',
+      return { title: Conv.src === 'tab' ? 'Audio tab terverifikasi' : 'Mikrofon aktif',
+        sub: Conv.src === 'tab' ? 'Mendengarkan lawan bicara secara otomatis' : 'Mendengarkan lawan lewat mikrofon (Inggris)',
         mode:'Mode: English → Indonesia', label:'Saya Bicara', hint: talkHint };
     }
     if(s === 'me') return { title:'Mikrofon Anda aktif', sub:'Pengenalan suara lawan dijeda. Bicaralah dalam Bahasa Indonesia.', mode:'Mode: Indonesia → English', label:'Selesai Bicara', hint:'Ketuk lagi, atau diam 1 detik untuk selesai' };
     if(s === 'proc') return { title:'Memproses ucapan Anda', sub:'Transkripsi, terjemahan, lalu suara Inggris', mode:'Mode: Indonesia → English', label:'Memproses…', hint:'Mohon tunggu sebentar' };
     if(s === 'out') return { title:'Memutar terjemahan Inggris', sub:'Lawan didengarkan lagi setelah selesai', mode:'Mode: Indonesia → English', label:'Memutar…', hint:'Ketuk untuk melewati suara' };
+    if(!VB.ready()) return { title: MSG_OFF, sub:'Isi alamat server dan kode akses di Pengaturan. Tanpa layanan AI, penerjemahan tidak berjalan.', mode:'', label:'Saya Bicara', hint:'Hubungkan layanan AI di Pengaturan dulu' };
     return { title:'Belum ada sesi', sub:'Pilih sumber audio lalu mulai sesi.', mode:'', label:'Saya Bicara', hint:'Ketuk untuk mulai sesi dan izinkan mikrofon' };
   }
   function setState(s){
     Conv.state = s;
     const T = stateText(s);
-    $('vbStatus').dataset.s = (s === 'listen' && Conv.src === 'tab' && !Conv.free && !Conv.tabOk) ? 'wait' : s;
+    $('vbStatus').dataset.s = (s === 'listen' && Conv.src === 'tab' && !Conv.tabOk) ? 'wait' : s;
     $('vbTitle').textContent = T.title; setLive(T.sub); $('vbMode').textContent = T.mode;
     const m = $('vbMic'); m.dataset.s = s; m.disabled = (s === 'proc');
     $('vbMicLabel').textContent = T.label; $('vbMicHint').textContent = T.hint;
     $('vbStop').disabled = !Conv.on; $('vbSetup').hidden = Conv.on;
-    $('planBadge').title = Conv.on ? (Conv.free ? 'Mode Gratis' : 'Mode Uji (backend)') : '';
+    $('planBadge').title = Conv.on ? 'Mode Uji (backend)' : '';
+    $('vbStatus').dataset.svc = VB.ready() ? 'on' : 'off';
   }
 
   // ---- petunjuk kualitas suara ----
@@ -1478,7 +1422,7 @@
       K.setTr(r.text); K.rec.corrected = true; K.rec.audio = null; K.rec.engine = r.engine; K.status('Dikoreksi');
       const h = history.find(x => x.id === K.rec.id); if(h){ h.orig = text; h.tr = r.text; }
       histSave();
-    }catch(e){ K.fail('Gagal menerjemahkan: ' + e.message); }
+    }catch(e){ K.fail('Gagal menerjemahkan: ' + svcMsg(e)); }
   }
   function openEditor(K){
     const box = K.el.querySelector('[data-k="orig"]').parentElement; if(box.querySelector('.vb-edit')) return;
@@ -1496,12 +1440,10 @@
     const lang = rec.side === 'me' ? 'en' : 'id';
     speaking = true; K.status('Memutar…');
     try{
-      if(VB.ready()){
-        if(!rec.audio){ K.status('Menyiapkan suara…'); rec.audio = await ttsBackend(rec.translation, lang); K.status('Memutar…'); }
-        await playBlob(rec.audio);
-      } else await withTimeout(speak(rec.translation, BCP[lang]), speakLimit(rec.translation));
+      if(!rec.audio){ K.status('Menyiapkan suara…'); rec.audio = await ttsBackend(rec.translation, lang); K.status('Memutar…'); }
+      await playBlob(rec.audio);
       K.status('');
-    }catch(e){ K.fail('Suara gagal: ' + e.message); }
+    }catch(e){ K.fail('Suara gagal: ' + svcMsg(e)); }
     speaking = false; Conv.cool = Date.now() + 700;
   }
   $('convList').addEventListener('click', ev => {
@@ -1513,15 +1455,10 @@
   });
 
   // ---- memproses satu giliran ----
-  // Suara perangkat kadang tidak pernah memicu onend (bug Chrome Android): jangan biarkan sesi macet.
-  const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(res, ms))]);
-  const speakLimit = text => Math.max(6000, text.length * 120 + 4000);
-  async function speakFor(K, side, text, lang){
+    async function speakFor(K, side, text, lang){
     speaking = true; if(side === 'me') setState('out');
-    try{
-      if(VB.ready()){ const b = await ttsBackend(text, lang); K.rec.audio = b; await playBlob(b); }
-      else await withTimeout(speak(text, BCP[lang]), speakLimit(text));
-    }catch(e){ K.fail('Suara gagal: ' + e.message); }
+    try{ const b = await ttsBackend(text, lang); K.rec.audio = b; await playBlob(b); }
+    catch(e){ K.fail('Suara gagal: ' + svcMsg(e)); }
     speaking = false; Conv.cool = Date.now() + 700;
   }
   async function completeTurn(K, side, text, gen){
@@ -1529,7 +1466,7 @@
     K.setOrig(text); K.status('Menerjemahkan…');
     let r;
     try{ r = await translate(text, c.src, c.tgt); }
-    catch(e){ K.fail('Gagal menerjemahkan: ' + e.message + ' (ketuk ✎ untuk coba lagi)'); return false; }
+    catch(e){ K.fail('Gagal menerjemahkan: ' + svcMsg(e) + ' (ketuk ✎ untuk coba lagi)'); return false; }
     history.push({ id: K.rec.id, side, orig: text, tr: r.text });
     K.setTr(r.text); K.rec.engine = r.engine; K.status(''); histSave();
     if(gen !== Conv.gen || !Conv.on) return true;
@@ -1539,13 +1476,13 @@
   function backToListen(gen){
     if(!Conv.on || gen !== Conv.gen) return;
     setState('listen');
-    if(Conv.free) startFreeListen(); else if(Conv.vadThem) Conv.vadThem.reset();
+    if(Conv.vadThem) Conv.vadThem.reset();
   }
   async function runThem(K, samples, rate, info, gen){
     K.status('Mengenali suara…');
     let text;
     try{ text = await sttBackend(samples, rate, 'en'); }
-    catch(e){ K.remove(); showHint('Gagal mengenali suara lawan: ' + e.message); return; }
+    catch(e){ K.remove(); showHint('Gagal mengenali suara lawan: ' + svcMsg(e)); return; }
     if(!text || HALLU.test(text)){ K.remove(); return; }
     K.meta(micLine(info));
     await completeTurn(K, 'them', text, gen);
@@ -1554,7 +1491,7 @@
     K.status('Mengenali suara…');
     let text;
     try{ text = await sttBackend(samples, rate, 'id'); }
-    catch(e){ K.remove(); showHint('Gagal mengenali suara Anda: ' + e.message); backToListen(gen); return; }
+    catch(e){ K.remove(); showHint('Gagal mengenali suara Anda: ' + svcMsg(e)); backToListen(gen); return; }
     if(!text || HALLU.test(text)){ K.remove(); showHint('Ucapan tidak terdengar jelas. Ketuk Saya Bicara dan coba lagi.'); backToListen(gen); return; }
     K.meta(micLine(info));
     await completeTurn(K, 'me', text, gen);
@@ -1574,45 +1511,22 @@
     enqueue(() => runMe(K, samples, rate, info, gen));
   }
 
-  // ---- mode Gratis: pengenal suara bawaan browser ----
-  async function startFreeListen(){
-    const ok = await startListening('them', onFreeThem, false, 'conv');
-    if(!ok && Conv.on) endSession('Pengenal suara tidak bisa dimulai. Periksa izin mikrofon atau pakai Chrome.');
-    return ok;
-  }
-  function onFreeThem(side, text){
-    if(!text || Conv.state !== 'listen') return;
-    const K = newCard('them'), gen = Conv.gen;
-    enqueue(() => completeTurn(K, 'them', text, gen));
-  }
-  function onFreeMe(side, text){
-    if(Conv.state !== 'me') return;
-    const gen = Conv.gen;
-    if(text === null){ setState('listen'); setLive('Tidak ada suara terdengar. Ketuk Saya Bicara untuk mencoba lagi.'); startFreeListen(); return; }
-    setState('proc');
-    const K = newCard('me');
-    enqueue(async () => { await completeTurn(K, 'me', text, gen); backToListen(gen); });
-  }
-
   // ---- tombol utama ----
   function enterMe(){
-    if(Conv.free){ setState('me'); startListening('me', onFreeMe, true, 'conv'); return; }
     Conv.vadThem.reset(); Conv.vadMe.reset(); setState('me');
     clearTimeout(Conv.meTimer);
     Conv.meTimer = setTimeout(() => { if(Conv.state === 'me' && !Conv.vadMe.inSpeech()) cancelMe('Tidak ada suara terdengar. Ketuk Saya Bicara untuk mencoba lagi.'); }, 15000);
   }
   function cancelMe(msg){
     clearTimeout(Conv.meTimer);
-    if(Conv.free){ stopListening(); } else if(Conv.vadMe) Conv.vadMe.reset();
+    if(Conv.vadMe) Conv.vadMe.reset();
     setState('listen'); if(msg) setLive(msg);
-    if(Conv.free) startFreeListen();
   }
   function finishMe(){
-    if(Conv.free){ cancelMe('Dibatalkan. Ketuk Saya Bicara untuk mencoba lagi.'); return; }
     clearTimeout(Conv.meTimer);
     if(!Conv.vadMe.flush()) cancelMe('Belum ada ucapan terdengar. Ketuk Saya Bicara untuk mencoba lagi.');
   }
-  function skipSpeech(){ try{ player.pause(); }catch(_){} try{ if('speechSynthesis' in window) speechSynthesis.cancel(); }catch(_){} }
+  function skipSpeech(){ try{ player.pause(); }catch(_){} }
   function onMainButton(){
     if(!Conv.on){ startSession(); return; }
     if(Conv.state === 'listen') enterMe();
@@ -1655,20 +1569,26 @@
       p.onchange = upd; upd();
     }catch(_){ $('permState').textContent = 'tidak bisa diperiksa di browser ini'; }
   }
+  // Pemeriksaan layanan sebelum sesi: tanpa mikrofon, tanpa kredit (GET /api/me gratis). Gagal = sesi TIDAK dimulai dan tidak ada klaim berhasil.
+  async function serviceGate(){
+    if(!VB.ready()){ setState('idle'); setLive(MSG_OFF + ' Isi alamat server dan kode akses di Pengaturan.'); showHint(MSG_OFF); return false; }
+    let me;
+    try{ me = await vbCall('/api/me', { method: 'GET', tries: 1, timeout: 7000 }).then(r => r.json()); VB.me = me; renderPlan(); }
+    catch(e){
+      if(e.status === 401){ VB.setToken(''); VB.me = null; renderPlan(); }
+      const m = (e.status === 0 || e.status === 401) ? MSG_OFF + ' ' + e.message : MSG_OFF + ' ' + (e.message || '');
+      setLive(m); showHint(m); return false;
+    }
+    if(me.paid_enabled === false){ const m = MSG_OFF + ' Layanan AI sedang dinonaktifkan oleh administrator.'; setLive(m); showHint(m); return false; }
+    return true;
+  }
   async function startSession(){
     if(Conv.on) return;
     unlockAudio();
+    if(!(await serviceGate())) return;
     if(!(await ensureConsent())) return;
-    Conv.free = !VB.ready();
     Conv.src = ($('vbSrc').value === 'tab' && canTab()) ? 'tab' : 'mic';
-    if(Conv.free && Conv.src === 'tab'){ toast('Audio tab butuh kode akses backend. Dipakai mikrofon.'); Conv.src = 'mic'; }
     Conv.gen++; Conv.tabSeen = 0; Conv.tabOk = false; Conv.chain = Promise.resolve();
-    if(Conv.free){
-      if(!SR){ showHint('Browser ini tidak punya pengenal suara bawaan. Pakai Chrome atau isi kode akses di Pengaturan.'); return; }
-      Conv.on = true; setState('listen'); watchPermission();
-      if(!(await startFreeListen())) return;
-      return;
-    }
     try{
       if(Conv.src === 'tab'){
         try{ Conv.tabStream = await getTabAudio(); }
@@ -1846,6 +1766,7 @@
       if(e){ $('scriptResult').innerHTML = resultHtml(e); $('btnNext').classList.add('pri', 'pulse'); }
     }, true, 'test');
     if(ok) $('scriptStatus').textContent = 'Mendengarkan… bacakan kalimat di atas.';
+    else $('scriptStatus').textContent = VB.ready() ? 'Mikrofon tidak bisa dimulai.' : MSG_OFF + ' Hubungkan di Pengaturan.';
   };
   $('btnSampleDialog').onclick = () => { $('customDialog').value = DIALOGS.A.items.map(x => (x[0] === 'me' ? 'Saya: ' : 'Lawan: ') + x[1] + ' | ' + x[2]).join('\n'); };
   $('btnUseDialog').onclick = () => {
@@ -1991,12 +1912,12 @@
     if(base && !/^(https:\/\/|http:\/\/(localhost|127\.0\.0\.1))/.test(base)){ vbInfo('Alamat server harus diawali https://'); return; }
     lsSet('vb_api', base);
     const code = $('vbCode').value.trim(); if(code){ VB.setToken(code); $('vbCode').value = ''; }
-    if(!VB.ready()){ vbInfo('Isi alamat server dan kode akses. Mode Gratis aktif.'); VB.me = null; renderPlan(); return; }
+    if(!VB.ready()){ vbInfo(MSG_OFF + ' Isi alamat server dan kode akses.'); VB.me = null; renderPlan(); return; }
     vbInfo('Memeriksa…');
     try{ vbInfo(vbDescribe(await vbRefresh())); }
     catch(e){ vbInfo('Gagal: ' + e.message); if(e.status === 401){ VB.setToken(''); VB.me = null; renderPlan(); } }
   };
-  $('vbDisconnect').onclick = () => { VB.setToken(''); VB.me = null; renderPlan(); vbInfo('Terputus. Mode Gratis aktif.'); };
+  $('vbDisconnect').onclick = () => { VB.setToken(''); VB.me = null; renderPlan(); vbInfo('Terputus. ' + MSG_OFF); };
 
   // sumber audio lawan
   bind('vbSrc', 'vb_src', 'mic');
@@ -2039,11 +1960,10 @@
   // mulai
   if(purgeLegacyKeys()) toast('Kunci API lama dihapus dari perangkat ini. Kunci kini hanya ada di server.');
   renderPlan(); histInfo(); renderScript(); renderSummary(); renderVoiceGate(); setState('idle'); watchPermission();
-  if(VB.ready()) vbRefresh().then(me => vbInfo(vbDescribe(me))).catch(e => vbInfo('Gagal terhubung: ' + e.message));
+  if(VB.ready()) vbRefresh().then(me => vbInfo(vbDescribe(me))).catch(e => vbInfo(MSG_OFF + ' ' + e.message));
   document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && (Listen.active || Conv.on)) keepAwake(true); });
-  if('speechSynthesis' in window) speechSynthesis.onvoiceschanged = () => {};
 
-  if(window.__TEST__) window.__t = { DIALOGS, hist: () => history, sub, subShow, subSet, subByChar, subDone, speak, handle, ttsFlags, Listen, startListening, stopListening, LOG: () => LOG,
+  if(window.__TEST__) window.__t = { DIALOGS, hist: () => history, sub, subShow, subSet, subByChar, subDone, handle, ttsFlags, Listen, startListening, stopListening, LOG: () => LOG,
     normText, wer, accuracy, tokenF1, diffHtml, parseDialog, analyzeFrames, verdictFor, encodeWav, resample, buildCsv, buildText, buildTranscript, scopeLogs, SCRIPTS, Script, scriptItems, showView,
     Conv, VB, VAD, StreamTap, renderVoiceGate, FEATURES, CONV, CARDS, newCard, setState, startSession, endSession, onMainButton, vbCall, translate, sttBackend, ttsBackend, purgeLegacyKeys, transcriptText, sessObj, histRead, clearSession, onThem, onMeSpeech, completeTurn };
 })();

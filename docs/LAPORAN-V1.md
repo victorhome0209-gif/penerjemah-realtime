@@ -1,3 +1,5 @@
+> Catatan V1.2: laporan ini bersejarah. Mode Gratis yang disebut di bawah sudah DIHAPUS di V1.2 (lihat `docs/V1.2.md`).
+
 # Laporan VocalBridge V1 (29 Oktober 2026)
 
 > **Diperbarui:** setelah pemeriksaan ulang, masalah P0/P1 diperbaiki. Lihat `REMEDIASI.md` (per masalah) dan `BACKEND.md` (panduan terbaru). Angka tes terbaru: backend 88, statis 23, regresi 20, E2E 99. Bagian di bawah adalah laporan V1 asli; butir yang berubah ditandai.

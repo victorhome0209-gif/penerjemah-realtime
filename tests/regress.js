@@ -50,7 +50,7 @@ const battery = () => {
   let ok = 0, bad = 0; const report = (n, c, x) => { c ? ok++ : bad++; console.log((c ? 'LULUS ' : 'GAGAL ') + n + (c ? '' : '  | ' + x)); };
   for (const k of Object.keys(res.old)) { if (k === 'keys') continue; const a = JSON.stringify(res.old[k]), b = JSON.stringify(res.new[k]); report('Regresi ' + k + ': hasil identik dengan versi lama', a === b, a.slice(0, 120) + ' <> ' + b.slice(0, 120)); }
   const missing = res.old.keys.filter(k => !res.new.keys.includes(k));
-  report('Regresi: semua fungsi uji lama masih tersedia (kecuali elSpeak yang dihapus)', missing.every(k => k === 'elSpeak'), missing.join());
+  report('Regresi: semua fungsi uji lama masih tersedia (kecuali elSpeak dan speak: suara perangkat sengaja dihapus di V1.2)', missing.every(k => k === 'elSpeak' || k === 'speak'), missing.join());
   report('Regresi: tanpa galat JS di kedua versi', res.oldErrs.length === 0 && res.newErrs.length === 0, JSON.stringify([res.oldErrs, res.newErrs]));
   console.log('\n' + ok + '/' + (ok + bad) + ' lulus'); process.exit(bad ? 1 : 0);
 })();

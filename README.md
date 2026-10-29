@@ -9,7 +9,7 @@ Lawan bicara tidak perlu memasang apa pun dan tidak perlu menekan tombol.
 - Satu tombol utama: **Saya Bicara**. Sesudah sesi dimulai, lawan bicara (Inggris) didengarkan otomatis.
 - Saat Saya Bicara ditekan: pengenalan suara lawan dijeda, mikrofon Indonesia aktif, ucapan diterjemahkan ke Inggris dan dibacakan, lalu aplikasi kembali mendengarkan lawan.
 - Empat teks selalu tampil: Saya (asli Indonesia, terjemahan Inggris) dan Lawan (asli Inggris, terjemahan Indonesia), dengan salin, putar ulang, koreksi, dan riwayat.
-- Dua mode: **Gratis** (browser + MyMemory, tanpa kunci) dan **Uji** (kode akses; ucapan diproses OpenAI lewat backend).
+- **Hanya satu mode (V1.2, API-only):** pengenal suara, terjemahan, dan suara selalu lewat backend ke OpenAI dengan kode akses. Tanpa backend aplikasi menampilkan "Layanan AI belum terhubung." dan tidak ada mode Gratis, MyMemory, atau suara bawaan browser. Lihat `docs/V1.2.md`.
 
 ## Struktur
 | Bagian | Isi |

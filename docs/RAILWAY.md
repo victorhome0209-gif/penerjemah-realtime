@@ -55,7 +55,7 @@ Rahasia: isi sendiri di Railway. Jangan menempelkannya ke chat, GitHub, atau Git
 7. **Bukti Volume:** `POST /admin/codes` membuat kode uji, lalu **restart/redeploy**, lalu `GET /admin/codes` masih memuat kode itu. Bila hilang, **berhenti**: Volume belum terpasang di `/data`.
 8. `GET https://ALAMAT/api/health` → `{"ok":true,"paid_enabled":false,"store_ok":true}`.
 9. Uji keamanan S1–S6 di `docs/UJI-NYATA.md` bagian B (tanpa biaya).
-10. Isi `VB_CONFIG.API_BASE` di `index.html` dengan alamat Railway (alamat publik, bukan rahasia) melalui PR terpisah, atau tempel di Pengaturan aplikasi.
+10. (V1.2: tanpa alamat ini aplikasi hanya menampilkan "Layanan AI belum terhubung." dan tidak menerjemahkan apa pun.) Isi `VB_CONFIG.API_BASE` di `index.html` dengan alamat Railway (alamat publik, bukan rahasia) melalui PR terpisah, atau tempel di Pengaturan aplikasi.
 11. Pasang **batas belanja di dashboard OpenAI**, lalu baru ikuti `docs/UJI-NYATA.md` bagian C untuk menyalakan `PAID_API_ENABLED=true` dengan biaya terbatas.
 
 ## 5. Healthcheck dan pengamanan

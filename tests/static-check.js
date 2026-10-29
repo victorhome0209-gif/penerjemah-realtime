@@ -49,4 +49,14 @@ check('Backend: provider tanpa loop percobaan ulang atau fallback', !/for\s*\(\s
 check('Backend: konfigurasi ketat (ConfigError) dan kunci admin wajib request_id', /class ConfigError/.test(bk) && /request_id/.test(bk));
 check('Frontend: modul Suara Saya ada tetapi tombol klon nonaktif secara bawaan', /id="view-voice"/.test(html) && /id="cloneBtn"[^>]*disabled/.test(html) && /id="btnPlayClone"[^>]*disabled/.test(html));
 check('Frontend: klon suara hanya lewat backend dan bergantung gerbang server', /features\.voice_clone|voice_clone/.test(js) && !/elevenlabs/i.test(js.replace(/ElevenLabs|ELEVENLABS/g, '')));
+// ---- V1.2 API-only: tidak ada mode Gratis ----
+const visible = html.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<style[\s\S]*?<\/style>/g, '');
+check('V1.2: tidak ada tombol, label, atau teks "Gratis" di UI', !/gratis/i.test(visible), (visible.match(/.{0,30}gratis.{0,30}/i) || [])[0]);
+check('V1.2: MyMemory dihapus total (tanpa host, fungsi, atau CSP khusus)', !/mymemory|translated\.net|translateFree/i.test(html));
+check('V1.2: tidak memakai Browser Speech Recognition', !/SpeechRecognition|webkitSpeechRecognition/.test(noComments));
+check('V1.2: tidak memakai suara perangkat (speechSynthesis) sebagai cadangan', !/speechSynthesis|SpeechSynthesisUtterance/.test(noComments));
+check('V1.2: pesan "Layanan AI belum terhubung." ada dan dipakai untuk tombol utama', /const MSG_OFF = 'Layanan AI belum terhubung\.'/.test(noComments) && /serviceGate\(\)/.test(noComments));
+check('V1.2: sesi diperiksa layanan (serviceGate) SEBELUM persetujuan dan mikrofon', /await serviceGate\(\)\)\) return;\s*if\(!\(await ensureConsent/.test(noComments) && noComments.indexOf('await serviceGate()') < noComments.indexOf('getUserMedia(micConstraints(micProfile()))'));
+check('V1.2: translate, STT, dan TTS menolak bila layanan belum terhubung (tanpa cadangan)', (noComments.match(/if\(!VB\.ready\(\)\) throw offError/g) || []).length === 3);
+check('V1.2: tidak ada percobaan ulang atau cadangan lain di frontend selain idempotensi vbCall (maks 2 percobaan, kunci sama)', (noComments.match(/vbCall\(/g) || []).length >= 5 && !/catch\([^)]*\)\s*\{[^}]*translateFree/.test(noComments));
 console.log('\n' + ok + '/' + (ok + bad) + ' lulus'); process.exit(bad ? 1 : 0);
