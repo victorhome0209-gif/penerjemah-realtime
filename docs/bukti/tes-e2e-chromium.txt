@@ -1,0 +1,123 @@
+
+## UI: satu tombol utama, tanpa tombol Lawan Bicara, tanpa klaim "audio meeting tersambung"
+LULUS UI: hanya satu tombol "Saya Bicara"
+LULUS UI: tidak ada tombol Lawan Bicara
+LULUS UI: tidak ada klaim "tersambung" sebelum sesi
+LULUS UI: status awal idle dan lencana Gratis
+LULUS UI: tanpa galat JS saat dimuat
+
+## Keamanan: kunci lama dihapus dari localStorage saat dibuka
+LULUS Keamanan: tr_key_openai, tr_key_claude, tr_elkey terhapus
+
+## Alur utama: sesi, lawan otomatis, Saya Bicara, empat teks, tanpa tabrakan STT
+LULUS Backend: terhubung dan lencana menampilkan kredit
+LULUS Keamanan: kode akses hanya di sessionStorage
+LULUS Persetujuan: getUserMedia belum dipanggil sebelum setuju
+LULUS Persetujuan: dialog tampil sebelum izin audio
+LULUS Sesi: status "Mikrofon aktif" tanpa klaim tersambung
+LULUS Sesi: mikrofon diminta setelah persetujuan
+LULUS Sesi: tombol Hentikan aktif, panel setup tersembunyi
+LULUS Audio: indikator level bergerak mengikuti sinyal nyata
+LULUS Lawan: teks asli Inggris tampil
+LULUS Lawan: terjemahan Indonesia tampil
+LULUS Kredit: lawan = STT 2 + terjemah 1
+LULUS Keadaan: tetap mendengarkan lawan setelah giliran lawan
+LULUS Saya Bicara: status berubah dan lawan dijeda
+LULUS Saya: teks asli Indonesia tampil
+LULUS Saya: terjemahan Inggris tampil
+LULUS Saya: audio Inggris dipanggil dari backend dan diputar
+LULUS Saya: kembali mendengarkan lawan otomatis
+LULUS STT: bahasa lawan en, bahasa saya id
+LULUS STT: tidak pernah dua proses berjalan bersamaan
+LULUS Empat teks: dua kartu, masing-masing dua blok
+LULUS Salin: isi clipboard sama dengan terjemahan
+LULUS Putar ulang kartu Saya: memakai audio tersimpan, tanpa biaya baru
+LULUS Putar ulang kartu Lawan: membuat suara Indonesia sekali
+LULUS Putar ulang kedua: dari cache, tanpa biaya
+LULUS Koreksi: teks asli dan terjemahan diperbarui
+LULUS Riwayat: tidak tersimpan secara bawaan
+LULUS Riwayat: setelah opt-in tersimpan sebagai teks saja
+LULUS Ekspor transkrip: memuat teks asli dan terjemahan
+LULUS Hapus sesi: kartu dan riwayat sesi hilang
+LULUS Jaringan: tidak ada panggilan langsung ke penyedia AI
+LULUS Jaringan: semua panggilan berbayar membawa Authorization dan Idempotency-Key
+LULUS Jaringan: kunci idempotensi unik per permintaan
+LULUS Penyimpanan: tidak ada kunci API atau kode akses di localStorage
+LULUS Hentikan: sesi idle dan semua trek mikrofon berhenti
+LULUS Tanpa galat JS selama alur
+
+## Sumber audio tab: "terverifikasi" hanya setelah sinyal terdeteksi, dan jalur tanpa audio
+LULUS Tab: sebelum ada suara, status menunggu (bukan terverifikasi)
+LULUS Tab: tidak ada klaim terverifikasi atau tersambung
+LULUS Tab: terverifikasi setelah sinyal terdeteksi
+LULUS Tab: suara dari tab diproses sebagai lawan
+LULUS Tab: Hentikan melepas semua trek
+LULUS Tab tanpa audio: pesan jelas dan kembali ke mikrofon
+
+## Ketahanan: respons hilang saat retry tidak memotong kredit dua kali
+LULUS Retry: permintaan sempat dijatuhkan lalu dicoba ulang
+LULUS Retry: penyedia dipanggil sekali saja untuk terjemahan
+LULUS Retry: kredit terpotong sekali (STT 2 + terjemah 1)
+LULUS Retry: balasan ulang ditandai Idempotent-Replay
+
+## Kesalahan: kredit habis dan layanan dinonaktifkan ditampilkan jelas
+LULUS Kredit habis: pesan jelas di kartu, tanpa crash
+LULUS Kredit habis: kredit tidak negatif dan tidak ada panggilan terjemahan
+LULUS Dinonaktifkan admin: pesan jelas
+
+## Responsif: HP (Pixel 7) dan desktop tanpa scroll horizontal, tombol terjangkau
+LULUS HP: tanpa scroll horizontal
+LULUS HP: tombol Saya Bicara terlihat penuh di layar
+LULUS HP: teks percakapan besar (>=17px) dan tidak terpotong
+LULUS HP: opsi audio tab dinonaktifkan dengan penjelasan
+LULUS Desktop: tanpa scroll horizontal
+LULUS Desktop: tombol Saya Bicara terlihat penuh di layar
+LULUS Desktop: teks percakapan besar (>=17px) dan tidak terpotong
+
+## Mode Gratis (tanpa backend): satu tombol, lawan otomatis, giliran Saya (SpeechRecognition dipalsukan)
+LULUS Gratis: sesi mendengarkan lawan dalam Inggris (en-US)
+LULUS Gratis: kartu Lawan berisi teks asli dan terjemahan
+LULUS Gratis: Saya Bicara menjeda lawan dan memakai id-ID
+LULUS Gratis: kartu Saya dan suara perangkat Inggris dipakai
+LULUS Gratis: kembali mendengarkan lawan (en-US)
+LULUS Gratis: tidak memanggil backend sama sekali
+LULUS Gratis: tanpa galat JS
+LULUS Gratis: Hentikan mengembalikan ke idle
+
+## Suara Saya (klon suara): modul dipertahankan sebagai fitur Pro NONAKTIF, rekam sampel lokal tanpa jaringan
+LULUS Suara Saya: tampilan ada dan tombol kembali tersedia
+LULUS Suara Saya: ditandai fitur Pro nonaktif
+LULUS Suara Saya: tombol klon dan suara klon nonaktif, pakai-klon nonaktif
+LULUS Suara Saya: server menyatakan fitur nonaktif lewat /api/me
+LULUS Suara Saya: persetujuan saja tidak mengaktifkan klon
+LULUS Suara Saya: rekaman sampel lokal berhasil dan dapat didengar ulang
+LULUS Suara Saya: merekam sampel tidak mengirim apa pun ke jaringan
+LULUS Suara Saya: mengeklik klon tidak memanggil /api/clone atau ElevenLabs
+LULUS Suara Saya: gerbang mengikuti pernyataan server (aktif + sampel + persetujuan = tombol terbuka)
+LULUS Suara Saya: tanpa galat JS
+
+## Restart backend sungguhan saat permintaan berjalan (browser): kredit ditahan, tidak ditagih ganda, sesi pulih
+LULUS Restart: permintaan STT pertama sampai ke penyedia
+LULUS Restart: backend baru melaporkan pemulihan 1 transaksi UNKNOWN
+LULUS Restart: transaksi UNKNOWN tercatat dan kredit ditahan (tidak dikembalikan otomatis)
+LULUS Restart: ID transaksi = X-Client-Request-Id yang diterima penyedia
+LULUS Restart: sesi pulih dan ucapan berikutnya berhasil diproses
+LULUS Restart: kredit terpakai = pekerjaan yang ditagih penyedia (1 hilang ditahan + 1 sukses)
+LULUS Restart: admin merekonsiliasi (confirm) dan saldo konsisten
+
+## QA Lab: terpisah dari tampilan utama dan tetap berfungsi
+LULUS QA Lab: tampil dan percakapan tersembunyi
+LULUS QA Lab: naskah dialog tampil
+LULUS QA Lab: entri uji tersimpan dengan teks terdengar dan terjemahan
+LULUS QA Lab: kesesuaian ucapan dihitung
+LULUS QA Lab: hasil tampil di layar
+LULUS QA Lab: ekspor Csv berisi data
+LULUS QA Lab: ekspor Txt berisi data
+LULUS QA Lab: ekspor Trans berisi data
+LULUS QA Lab: ekspor Json berisi data
+LULUS QA Lab: memakai backend (kredit berkurang)
+LULUS QA Lab: hapus catatan mengosongkan data
+LULUS QA Lab: kembali ke percakapan
+LULUS QA Lab: tanpa galat JS
+
+99/99 lulus

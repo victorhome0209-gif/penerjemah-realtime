@@ -1,0 +1,8 @@
+Uji mutasi backend (kode dirusak sengaja; tes harus gagal). Dijalankan 29 Okt 2026 pada backend 1.1.0.
+M1 recover() mengembalikan semua transaksi (bug sweep(0) V1)      -> GAGAL: restart SIGKILL, rekonsiliasi refund, restart berulang, recover UNKNOWN
+M2 topup menerima angka negatif                                    -> GAGAL: topup nilai tidak valid, admin.test.js
+M3 STT mengirim permintaan kedua (fallback tersembunyi)            -> GAGAL: penolakan satu panggilan, tanpa fallback, kontrak STT, satu permintaan
+M4 timeout dianggap pasti gagal                                    -> GAGAL: adjust, laporan biaya, anggaran UNKNOWN, timeout UNKNOWN
+M5 write-ahead dihapus (markSent tidak dipanggil)                  -> GAGAL: SIGKILL restart, refund setelah restart
+M6 kunci idempotensi tidak dikunci untuk UNKNOWN                   -> GAGAL: SIGKILL restart, recover UNKNOWN, timeout UNKNOWN
+Setelah kode dipulihkan: 88/88 lulus.

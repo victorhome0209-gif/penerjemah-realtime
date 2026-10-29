@@ -1,0 +1,12 @@
+{
+  "name": "vocalbridge-backend",
+  "version": "1.1.1",
+  "private": true,
+  "description": "Backend VocalBridge V1: menyimpan kunci API di server, memotong kredit, membatasi biaya",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": { "node": ">=20" }
+}

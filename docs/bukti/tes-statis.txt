@@ -1,0 +1,25 @@
+LULUS Frontend: tidak memanggil api.openai.com, api.anthropic.com, atau api.elevenlabs.io
+LULUS Frontend: tanpa header kunci penyedia (x-api-key, xi-api-key)
+LULUS Frontend: tanpa kunci bergaya sk-... atau sk_...
+LULUS Frontend: tidak ada kolom isian API key
+LULUS Frontend: satu-satunya kolom password adalah kode akses uji
+LULUS Frontend: tidak ada kunci localStorage bernama key/token/code/secret
+LULUS Frontend: token akses hanya ditulis ke sessionStorage
+LULUS Frontend: nama kunci lama hanya muncul di daftar penghapusan
+LULUS Frontend: CSP membatasi sumber skrip dan objek
+LULUS Frontend: alamat backend bawaan kosong (tidak ada alamat tersembunyi)
+LULUS Frontend: tidak ada tombol "Lawan Bicara"
+LULUS Repositori: tidak ada kunci atau token di 43 berkas (di luar tes dengan kunci palsu)
+LULUS Repositori: .env tidak ikut terlacak dan .gitignore mengabaikannya
+LULUS .env.example hanya berisi placeholder kosong untuk rahasia
+LULUS Backend: tidak ada nilai kunci di kode (hanya nama variabel)
+LULUS Backend: log tidak mencetak kunci (tidak ada console.log berisi key)
+LULUS Backend: Dockerfile tidak menyalin .env atau data
+LULUS Backend: tidak ada pengembalian massal saat start (sweep(0) dari V1)
+LULUS Backend: tidak ada pembulatan diam-diam nilai admin (Math.floor(+...))
+LULUS Backend: provider tanpa loop percobaan ulang atau fallback
+LULUS Backend: konfigurasi ketat (ConfigError) dan kunci admin wajib request_id
+LULUS Frontend: modul Suara Saya ada tetapi tombol klon nonaktif secara bawaan
+LULUS Frontend: klon suara hanya lewat backend dan bergantung gerbang server
+
+23/23 lulus

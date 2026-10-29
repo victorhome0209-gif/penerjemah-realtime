@@ -1,0 +1,45 @@
+################ SEBELUM (V1, commit b4810a4) ################
+Backend diuji: /tmp/v1/backend
+
+## R1. Backend mati di tengah permintaan, lalu restart
+penyedia memproses dan menagih sebelum klien mati : completed=1
+setelah restart, kredit pengguna                  : 10 (awal 10)  <- DIKEMBALIKAN padahal penyedia sudah menagih
+kirim ulang dengan kunci yang sama                : HTTP 200 {"text":"hello","engine":"OpenAI gpt-6-luna"}
+RINGKASAN: penyedia menagih 2x, pengguna dipotong 1 kredit  <- BIAYA GANDA TIDAK TERTAGIH KE PENGGUNA
+
+## R2. /admin/topup dengan nilai tidak valid
+topup -1000                       HTTP 200  saldo sekarang=-990  {"id":"42902c2b","credits":-990,"disabled":false}
+topup 1e999 (tak hingga)          HTTP 200  saldo sekarang=null  {"id":"42902c2b","credits":null,"disabled":false}
+berkas data setelah itu mengandung "credits":null : true
+topup "abc"                       HTTP 200  saldo sekarang=null  {"id":"42902c2b","credits":null,"disabled":false}
+disabled:"false" (string)         HTTP 200  saldo sekarang=undefined  {"id":"42902c2b","credits":null,"disabled":true}
+kode sekarang dapat dipakai? HTTP 401  (401 = kode ikut nonaktif karena string "false")
+topup +5 (request_id sama, ke-1)  HTTP 200  saldo sekarang=undefined  {"id":"42902c2b","credits":null,"disabled":true}
+  diulang (Enter dua kali, ke-2)  HTTP 200  saldo sekarang=undefined  {"id":"42902c2b","credits":null,"disabled":true}
+
+## R3. Penyedia menolak permintaan (400): berapa kali penyedia dipanggil?
+1 permintaan STT  -> panggilan ke penyedia: 2  (HTTP 502)
+1 permintaan terjemahan -> panggilan ke penyedia: 3  (HTTP 502)
+
+################ SESUDAH (remediasi) ################
+Backend diuji: <repo>/backend
+
+## R1. Backend mati di tengah permintaan, lalu restart
+penyedia memproses dan menagih sebelum klien mati : completed=1
+setelah restart, kredit pengguna                  : 9 (awal 10)
+kirim ulang dengan kunci yang sama                : HTTP 409 {"error":"permintaan ini berstatus belum pasti di penyedia; kredit ditahan sampa
+RINGKASAN: penyedia menagih 1x, pengguna dipotong 1 kredit
+
+## R2. /admin/topup dengan nilai tidak valid
+topup -1000                       HTTP 400  saldo sekarang=10  {"error":"credits harus bilangan bulat antara 1 dan 1000000","code":"bad_credits"}
+topup 1e999 (tak hingga)          HTTP 400  saldo sekarang=10  {"error":"credits harus bilangan bulat antara 1 dan 1000000","code":"bad_credits"}
+berkas data setelah itu mengandung "credits":null : false
+topup "abc"                       HTTP 400  saldo sekarang=10  {"error":"credits harus bilangan bulat antara 1 dan 1000000","code":"bad_credits"}
+disabled:"false" (string)         HTTP 400  saldo sekarang=10  {"error":"topup hanya menambah kredit; untuk menonaktifkan pakai POST /admin/disable","cod
+kode sekarang dapat dipakai? HTTP 200  (401 = kode ikut nonaktif karena string "false")
+topup +5 (request_id sama, ke-1)  HTTP 200  saldo sekarang=15  {"id":"44032af4","credits":15,"held":0}
+  diulang (Enter dua kali, ke-2)  HTTP 200  saldo sekarang=15  {"id":"44032af4","credits":15,"held":0,"replayed":true}
+
+## R3. Penyedia menolak permintaan (400): berapa kali penyedia dipanggil?
+1 permintaan STT  -> panggilan ke penyedia: 1  (HTTP 502)
+1 permintaan terjemahan -> panggilan ke penyedia: 1  (HTTP 502)

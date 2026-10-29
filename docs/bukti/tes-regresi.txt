@@ -1,0 +1,22 @@
+LULUS Regresi norm: hasil identik dengan versi lama
+LULUS Regresi wer: hasil identik dengan versi lama
+LULUS Regresi diff: hasil identik dengan versi lama
+LULUS Regresi dialogs: hasil identik dengan versi lama
+LULUS Regresi parse: hasil identik dengan versi lama
+LULUS Regresi analyze: hasil identik dengan versi lama
+LULUS Regresi verdict: hasil identik dengan versi lama
+LULUS Regresi verdictNull: hasil identik dengan versi lama
+LULUS Regresi resample: hasil identik dengan versi lama
+LULUS Regresi resampleLen: hasil identik dengan versi lama
+LULUS Regresi wavHash: hasil identik dengan versi lama
+LULUS Regresi wavLen: hasil identik dengan versi lama
+LULUS Regresi csv: hasil identik dengan versi lama
+LULUS Regresi text: hasil identik dengan versi lama
+LULUS Regresi transcript: hasil identik dengan versi lama
+LULUS Regresi scopeLen: hasil identik dengan versi lama
+LULUS Regresi ttsFlags: hasil identik dengan versi lama
+LULUS Regresi scriptItemsA: hasil identik dengan versi lama
+LULUS Regresi: semua fungsi uji lama masih tersedia (kecuali elSpeak yang dihapus)
+LULUS Regresi: tanpa galat JS di kedua versi
+
+20/20 lulus
