@@ -1,7 +1,8 @@
 'use strict';
 // Tes browser (SIMULASI): halaman asli + backend asli + OpenAI palsu + mikrofon palsu di Chromium.
 // Bukan tes nyata: tidak ada suara manusia, kunci OpenAI, HP, atau Meet/Zoom sungguhan.
-const { chromium, devices } = require('playwright');
+let chromium, devices;
+try { ({ chromium, devices } = require('playwright')); } catch (_) { console.error('Playwright belum terpasang. Jalankan: npm install && npx playwright install chromium'); process.exit(2); }
 const { startAll } = require('./servers');
 const { spawnBackend } = require('../../backend/test/helpers');
 const net = require('net');

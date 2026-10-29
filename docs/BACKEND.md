@@ -27,9 +27,9 @@ Isi `ALLOWED_ORIGINS` dengan alamat GitHub Pages tanpa garis miring di akhir; be
 ## 3. Menyewa di Railway (disarankan, belum dilakukan)
 1. New Project → Deploy from GitHub repo → pilih repo ini, **Root Directory** `backend` (menu bisa berbeda, cek dokumentasi Railway).
 2. Variables: isi variabel di atas. Biarkan `PAID_API_ENABLED=false` dulu.
-3. Volumes: tambahkan Volume di `/data` dan set `DATA_DIR=/data`. **Tanpa Volume, saldo dan transaksi hilang saat restart.**
+3. Volumes: tambahkan Volume di `/data` dan set `DATA_DIR=/data`. **Tanpa Volume, saldo dan transaksi hilang saat restart.** Panduan lengkap: `docs/RAILWAY.md`.
 4. Generate Domain, lalu `https://ALAMAT/api/health` harus menampilkan `"ok": true, "paid_enabled": false, "store_ok": true`.
-5. Jalankan **hanya satu instance** (penyimpanan berkas JSON tidak aman untuk dua proses sekaligus).
+5. Jalankan **hanya satu instance**. Backend menegakkannya sendiri: `vocalbridge.lock` di `DATA_DIR` membuat proses kedua menolak start (`DATA_LOCK`, `LOCK_STALE_MS`, `LOCK_WAIT_MS`).
 Jangan men-deploy sebelum Anda menyetujui.
 
 ## 4. Mesin status transaksi

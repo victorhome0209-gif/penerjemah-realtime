@@ -1,7 +1,8 @@
 'use strict';
 // Regresi: fungsi murni QA Lab pada index.html BARU harus memberi hasil identik dengan index.html LAMA (commit 243b77b).
 // Perbedaan yang disengaja: baris "Pengenal suara: ... | Terjemahan: ..." pada laporan (mesin kini backend/browser).
-const { chromium } = require('playwright');
+let chromium;
+try { ({ chromium } = require('playwright')); } catch (_) { console.error('Playwright belum terpasang. Jalankan: npm install && npx playwright install chromium'); process.exit(2); }
 const { execFileSync } = require('child_process');
 const fs = require('fs'), os = require('os'), path = require('path');
 const ROOT = path.join(__dirname, '..');

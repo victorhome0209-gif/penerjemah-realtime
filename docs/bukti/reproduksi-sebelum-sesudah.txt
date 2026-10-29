@@ -22,7 +22,7 @@ topup +5 (request_id sama, ke-1)  HTTP 200  saldo sekarang=undefined  {"id":"429
 1 permintaan terjemahan -> panggilan ke penyedia: 3  (HTTP 502)
 
 ################ SESUDAH (remediasi) ################
-Backend diuji: /home/claude/victorhome0209-gif/penerjemah-realtime/backend
+Backend diuji: <repo>/backend
 
 ## R1. Backend mati di tengah permintaan, lalu restart
 penyedia memproses dan menagih sebelum klien mati : completed=1

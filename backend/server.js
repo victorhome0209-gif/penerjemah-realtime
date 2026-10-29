@@ -10,9 +10,10 @@ const { loadConfig, ConfigError } = require('./lib/config');
 const { Store } = require('./lib/store');
 const { buildProviders } = require('./lib/providers');
 const { modelWarnings } = require('./lib/models');
+const { DataLock } = require('./lib/lock');
 const { HttpError, redact, intIn, bool, cleanText, parseWav, RateLimiter, makeLogger } = require('./lib/util');
 
-const VERSION = '1.1.0';
+const VERSION = '1.1.1';
 
 function createApp(cfg, { logSink } = {}) {
   const store = new Store(cfg.dataDir, { monthlyBudgetUsd: cfg.monthlyBudgetUsd, dailyCalls: cfg.dailyCallsPerCode, maxBalance: cfg.maxBalance, maxCreditsPerOp: cfg.maxCreditsPerOp });
@@ -246,16 +247,23 @@ function warnings(cfg) {
 }
 
 if (require.main === module) {
-  let cfg;
-  try { cfg = loadConfig(); } catch (e) { if (e instanceof ConfigError) { console.error(JSON.stringify({ fatal: e.message })); process.exit(1); } throw e; }
-  const app = createApp(cfg);
-  app.server.listen(cfg.port, () => {
-    console.log(JSON.stringify({ t: new Date().toISOString(), msg: 'VocalBridge backend jalan', port: app.server.address().port, version: VERSION, paid_enabled: cfg.paidEnabled,
-      openai_key_set: !!cfg.openai.key, admin_set: !!cfg.adminToken, origins: cfg.origins, recovered: app.recovered, migrated_codes: app.store.migrated }));
-    warnings(cfg).forEach(m => console.warn(JSON.stringify({ warn: m })));
-  });
-  const stop = () => app.server.close(() => process.exit(0));
-  process.on('SIGTERM', stop); process.on('SIGINT', stop);
+  (async () => {
+    let cfg;
+    try { cfg = loadConfig(); } catch (e) { if (e instanceof ConfigError) { console.error(JSON.stringify({ fatal: e.message })); process.exit(1); } throw e; }
+    let lock = null;
+    if (cfg.dataLock) {
+      lock = new DataLock(cfg.dataDir, { staleMs: cfg.lockStaleMs, waitMs: cfg.lockWaitMs, onLost: e => { console.error(JSON.stringify({ fatal: e.message })); process.exit(1); } });
+      try { await lock.acquire(); } catch (e) { console.error(JSON.stringify({ fatal: e.message })); process.exit(1); }
+    }
+    const app = createApp(cfg);
+    app.server.listen(cfg.port, () => {
+      console.log(JSON.stringify({ t: new Date().toISOString(), msg: 'VocalBridge backend jalan', port: app.server.address().port, version: VERSION, paid_enabled: cfg.paidEnabled,
+        openai_key_set: !!cfg.openai.key, admin_set: !!cfg.adminToken, origins: cfg.origins, data_lock: !!lock, recovered: app.recovered, migrated_codes: app.store.migrated }));
+      warnings(cfg).forEach(m => console.warn(JSON.stringify({ warn: m })));
+    });
+    const stop = () => { if (lock) lock.release(); app.server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 5000).unref(); };
+    process.on('SIGTERM', stop); process.on('SIGINT', stop);
+  })();
 }
 
 module.exports = { createApp, warnings, VERSION };

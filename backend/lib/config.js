@@ -23,6 +23,10 @@ function loadConfig(E = process.env) {
     port: num('PORT', 8787, { min: 0, max: 65535, int: true }),
     dataDir: E.DATA_DIR || path.join(__dirname, '..', 'data'),
     trustProxy: bool('TRUST_PROXY', false),
+    // Penjaga satu instance pada DATA_DIR (lihat lib/lock.js). Jangan dimatikan di hosting.
+    dataLock: bool('DATA_LOCK', true),
+    lockStaleMs: num('LOCK_STALE_MS', 15000, { min: 100, max: 600000, int: true }),
+    lockWaitMs: num('LOCK_WAIT_MS', 30000, { min: 0, max: 300000, int: true }),
 
     adminToken: E.ADMIN_TOKEN || '',
     origins: String(E.ALLOWED_ORIGINS || '').split(',').map(x => x.trim()).filter(Boolean),

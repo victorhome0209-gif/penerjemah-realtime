@@ -1,5 +1,17 @@
 # Hasil uji VocalBridge V1
 
+## Validasi terbaru (V1.1.1, `node tests/run-all.js`, 29 Okt 2026) — exit akhir 0
+| Rangkaian | Exit | PASS | FAIL |
+|---|---|---|---|
+| Backend (`node --test`) | 0 | 95 | 0 |
+| Pemindai keamanan statis | 0 | 23 | 0 |
+| Inventaris dependensi | 0 | 7 | 0 |
+| Regresi QA Lab (Chromium) | 0 | 20 | 0 |
+| E2E Chromium (simulasi) | 0 | 99 | 0 |
+| `npm audit` backend (runtime) | 0 | 0 kerentanan | - |
+| `npm audit` akar/dev | 1 | tidak bisa dijalankan: registri npm tidak terjangkau dan tanpa lockfile akar | - |
+Ringkasan mentah: `docs/bukti/ringkasan-validasi.txt`. Tes browser butuh Playwright (`npm install && npx playwright install chromium`); tanpa itu `run-all` berhenti dengan exit 2 dan petunjuk, bukan lulus diam-diam. Angka di bagian bawah dokumen ini adalah catatan versi sebelumnya.
+
 Tiga jenis bukti dipisahkan. Hanya yang bertanda NYATA membuktikan perilaku di dunia nyata.
 
 ## 1. Tes OTOMATIS (tanpa jaringan penyedia, tanpa biaya) — LULUS (setelah remediasi, backend 1.1.0)

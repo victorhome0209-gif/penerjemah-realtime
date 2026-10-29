@@ -156,7 +156,7 @@ async function startApp(env = {}, preSeed) {
 
 // Proses backend TERPISAH (untuk mematikan paksa dengan SIGKILL). Port dibaca dari log start.
 async function spawnBackend(env, dir) {
-  const E = Object.assign({}, process.env, { PORT: '0', DATA_DIR: dir, ADMIN_TOKEN: ADMIN, OPENAI_API_KEY: FAKE_OPENAI_KEY, PAID_API_ENABLED: 'true', MONTHLY_BUDGET_USD: '5', ALLOWED_ORIGINS: ORIGIN, TRUST_PROXY: 'false' }, env);
+  const E = Object.assign({}, process.env, { PORT: '0', DATA_DIR: dir, ADMIN_TOKEN: ADMIN, OPENAI_API_KEY: FAKE_OPENAI_KEY, PAID_API_ENABLED: 'true', MONTHLY_BUDGET_USD: '5', ALLOWED_ORIGINS: ORIGIN, TRUST_PROXY: 'false', LOCK_STALE_MS: '400', LOCK_WAIT_MS: '3000' }, env);
   const p = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: E, stdio: ['ignore', 'pipe', 'pipe'] });
   let out = '', port = null;
   const ready = new Promise((resolve, reject) => {
