@@ -1,15 +1,35 @@
 'use strict';
-// Utilitas kecil: galat HTTP, penyamaran rahasia di log, pembaca header WAV, pembatas laju.
+// Utilitas: galat HTTP, penyamaran rahasia, validasi ketat, pembaca header WAV, pembatas laju, log.
 
+// outcome (hanya untuk galat penyedia): 'rejected' = penyedia menjawab menolak (pasti tidak diproses),
+// 'not_sent' = permintaan pasti tidak keluar, 'unknown' = hasil di penyedia TIDAK diketahui (mungkin sudah ditagih).
 class HttpError extends Error {
-  constructor(status, message, code) { super(message); this.status = status; this.code = code || null; }
+  constructor(status, message, code, outcome) { super(message); this.status = status; this.code = code || null; this.outcome = outcome || null; }
 }
 
-// Pola kunci yang tidak boleh muncul di log atau balasan.
 const SECRET_RE = /(sk-[A-Za-z0-9_\-]{6,}|sk_[A-Za-z0-9]{8,}|xi-api-key\S*|Bearer\s+[A-Za-z0-9._\-]{8,}|VB-[A-Z0-9]{8,})/g;
 function redact(s) { return String(s == null ? '' : s).replace(SECRET_RE, '[disembunyikan]'); }
 
-// Baca header WAV PCM 16-bit. Mengembalikan {rate, channels, seconds}. Melempar HttpError 400 bila tidak valid.
+// ----- validasi ketat untuk input admin dan klien -----
+// Hanya bilangan bulat bertipe number: menolak string, desimal, NaN, Infinity, dan nilai di luar rentang.
+function intIn(v, min, max, name) {
+  if (typeof v !== 'number' || !Number.isSafeInteger(v) || v < min || v > max) throw new HttpError(400, name + ' harus bilangan bulat antara ' + min + ' dan ' + max, 'bad_' + name);
+  return v;
+}
+function reqId(v) {
+  if (typeof v !== 'string' || !/^[A-Za-z0-9_\-]{8,64}$/.test(v)) throw new HttpError(400, 'request_id wajib (8-64 karakter huruf, angka, - atau _) agar pengulangan tidak mengubah saldo dua kali', 'request_id_required');
+  return v;
+}
+function bool(v, name) { if (typeof v !== 'boolean') throw new HttpError(400, name + ' harus true atau false (bukan teks)', 'bad_' + name); return v; }
+function cleanText(v, max, name, { required = false } = {}) {
+  if (v == null || v === '') { if (required) throw new HttpError(400, name + ' wajib diisi', 'bad_' + name); return ''; }
+  if (typeof v !== 'string') throw new HttpError(400, name + ' harus teks', 'bad_' + name);
+  const t = v.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, max);
+  if (required && !t) throw new HttpError(400, name + ' wajib diisi', 'bad_' + name);
+  return t;
+}
+
+// Baca header WAV PCM 16-bit. Mengembalikan {rate, channels, seconds}.
 function parseWav(buf, { minSeconds = 0.3, maxSeconds = 30 } = {}) {
   const bad = m => new HttpError(400, m, 'audio_invalid');
   if (!Buffer.isBuffer(buf) || buf.length < 44) throw bad('audio kosong atau terlalu pendek');
@@ -33,7 +53,6 @@ function parseWav(buf, { minSeconds = 0.3, maxSeconds = 30 } = {}) {
   return { rate: fmt.rate, channels: fmt.channels, seconds };
 }
 
-// Pembatas laju jendela tetap per kunci.
 class RateLimiter {
   constructor(limit, windowMs = 60000) { this.limit = limit; this.windowMs = windowMs; this.map = new Map(); }
   hit(key, now = Date.now()) {
@@ -45,10 +64,9 @@ class RateLimiter {
   }
 }
 
-// Log satu baris JSON. Tidak pernah berisi isi permintaan, audio, atau header.
 function makeLogger(sink) {
   const out = sink || (line => process.stdout.write(line + '\n'));
   return obj => out(redact(JSON.stringify(Object.assign({ t: new Date().toISOString() }, obj))));
 }
 
-module.exports = { HttpError, redact, parseWav, RateLimiter, makeLogger };
+module.exports = { HttpError, redact, intIn, reqId, bool, cleanText, parseWav, RateLimiter, makeLogger };

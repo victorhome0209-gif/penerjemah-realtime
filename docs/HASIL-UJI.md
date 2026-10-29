@@ -2,17 +2,17 @@
 
 Tiga jenis bukti dipisahkan. Hanya yang bertanda NYATA membuktikan perilaku di dunia nyata.
 
-## 1. Tes OTOMATIS (tanpa jaringan penyedia, tanpa biaya) — LULUS
+## 1. Tes OTOMATIS (tanpa jaringan penyedia, tanpa biaya) — LULUS (setelah remediasi, backend 1.1.0)
 | Rangkaian | Perintah | Hasil |
 |---|---|---|
-| Backend: autentikasi, CORS, kredit, idempotensi, batas, log aman | `cd backend && node --test test/*.test.js` | 43/43 |
-| Pemindai keamanan statis | `node tests/static-check.js` | 17/17 |
+| Backend: autentikasi, CORS, kredit, mesin status transaksi, restart SIGKILL nyata, admin, kontrak OpenAI | `cd backend && node --test test/*.test.js` | 88/88 |
+| Pemindai keamanan statis dan penjaga regresi | `node tests/static-check.js` | 23/23 |
 | Regresi QA Lab vs versi lama (commit 243b77b) | `node tests/regress.js` | 20/20 |
-Uji mutasi dilakukan: kode dirusak sengaja (refund dimatikan, cache idempotensi dimatikan, kunci dibocorkan ke log, kunci ditanam di frontend) dan tes terkait gagal sebagaimana mestinya.
+Uji mutasi: kode dirusak sengaja dan tes terkait gagal sebagaimana mestinya (V1: refund, cache idempotensi, log, kunci di frontend; remediasi: lihat `bukti/mutasi.txt`). Log mentah: `docs/bukti/`.
 
 ## 2. Tes SIMULASI (Chromium + mikrofon palsu + OpenAI palsu) — LULUS
-`npm run test:e2e` : 82/82. Memakai halaman asli dan backend asli, tetapi OpenAI dipalsukan, mikrofon adalah file nada berulang, dan SpeechRecognition serta getDisplayMedia dipalsukan di tes tertentu.
-Mencakup: konsen sebelum izin audio; lawan otomatis; Saya Bicara menjeda lawan; empat teks; satu STT pada satu waktu; salin, putar ulang (cache tanpa biaya), koreksi; riwayat opt-in, ekspor, hapus; tidak ada panggilan ke penyedia dari browser; tidak ada kunci di localStorage; Hentikan melepas mikrofon; tab "terverifikasi" hanya setelah sinyal; kredit habis dan layanan nonaktif; respons hilang lalu retry tanpa potong ganda; mode Gratis; layout HP (Pixel 7) dan desktop; QA Lab.
+`npm run test:e2e` : 99/99 (termasuk restart backend sungguhan saat permintaan berjalan dan modul Suara Saya nonaktif). Memakai halaman asli dan backend asli, tetapi OpenAI dipalsukan, mikrofon adalah file nada berulang, dan SpeechRecognition serta getDisplayMedia dipalsukan di tes tertentu.
+Mencakup (selain yang di atas): konsen sebelum izin audio; lawan otomatis; Saya Bicara menjeda lawan; empat teks; satu STT pada satu waktu; salin, putar ulang (cache tanpa biaya), koreksi; riwayat opt-in, ekspor, hapus; tidak ada panggilan ke penyedia dari browser; tidak ada kunci di localStorage; Hentikan melepas mikrofon; tab "terverifikasi" hanya setelah sinyal; kredit habis dan layanan nonaktif; respons hilang lalu retry tanpa potong ganda; mode Gratis; layout HP (Pixel 7) dan desktop; QA Lab.
 
 ## 3. Tes NYATA — BELUM DIJALANKAN
 Tidak ada panggilan ke OpenAI, tidak ada uji di HP atau Firefox, tidak ada uji dengan Meet atau Zoom. Prosedur: [UJI-NYATA.md](UJI-NYATA.md).

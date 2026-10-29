@@ -29,7 +29,7 @@ check('Frontend: tidak ada tombol "Lawan Bicara"', !/<button[^>]*>[^<]*Lawan bic
 let files;
 try { files = execFileSync('git', ['-C', ROOT, 'ls-files', '--cached', '--others', '--exclude-standard']).toString().split('\n').filter(Boolean); }
 catch (_) { files = []; }
-const SKIP = f => /^backend\/test\//.test(f) || /^tests\/(static-check|e2e|regress)/.test(f) || /\.(png|jpg|zip)$/.test(f);
+const SKIP = f => /^backend\/test\//.test(f) || /^tests\/(static-check|e2e|regress|repro-masalah)/.test(f) || /\.(png|jpg|zip)$/.test(f);
 const PATS = [/sk-(?:proj-)?[A-Za-z0-9_-]{20,}/, /sk-ant-[A-Za-z0-9_-]{20,}/, /sk_[a-f0-9]{30,}/, /xi-api-key\s*[:=]\s*['"][A-Za-z0-9]{16,}/, /OPENAI_API_KEY[ \t]*=[ \t]*\S{12,}/, /ELEVENLABS_API_KEY[ \t]*=[ \t]*\S{12,}/, /ANTHROPIC_API_KEY[ \t]*=[ \t]*\S{12,}/, /ADMIN_TOKEN[ \t]*=[ \t]*\S{12,}/, /-----BEGIN [A-Z ]*PRIVATE KEY-----/];
 const hits = [];
 for (const f of files) { if (SKIP(f)) continue; let t; try { t = fs.readFileSync(path.join(ROOT, f), 'utf8'); } catch (_) { continue; } for (const re of PATS) if (re.test(t)) hits.push(f + ' ~ ' + re); }
@@ -41,4 +41,12 @@ const be = ['server.js', ...fs.readdirSync(path.join(ROOT, 'backend', 'lib')).fi
 check('Backend: tidak ada nilai kunci di kode (hanya nama variabel)', !/['"]sk-[A-Za-z0-9]{8,}/.test(be));
 check('Backend: log tidak mencetak kunci (tidak ada console.log berisi key)', !/console\.(log|error|warn)\([^)]*(openai\.key|\.key\b|adminToken|authorization)/i.test(be));
 check('Backend: Dockerfile tidak menyalin .env atau data', !/COPY[^\n]*\.env|COPY[^\n]*data/.test(fs.readFileSync(path.join(ROOT, 'backend', 'Dockerfile'), 'utf8')));
+
+const bk = ['server.js', 'lib/store.js', 'lib/util.js', 'lib/config.js', 'lib/providers/openai.js', 'lib/providers/common.js'].map(f => fs.readFileSync(path.join(ROOT, 'backend', f), 'utf8')).join('\n');
+check('Backend: tidak ada pengembalian massal saat start (sweep(0) dari V1)', !/sweep\(\s*0\s*\)/.test(bk));
+check('Backend: tidak ada pembulatan diam-diam nilai admin (Math.floor(+...))', !/Math\.floor\(\s*\+/.test(bk));
+check('Backend: provider tanpa loop percobaan ulang atau fallback', !/for\s*\(\s*(const|let)\s+(body|attempt)\b[^)]*\)\s*\{[^}]*await send/.test(bk) && !/\btries\b/.test(bk));
+check('Backend: konfigurasi ketat (ConfigError) dan kunci admin wajib request_id', /class ConfigError/.test(bk) && /request_id/.test(bk));
+check('Frontend: modul Suara Saya ada tetapi tombol klon nonaktif secara bawaan', /id="view-voice"/.test(html) && /id="cloneBtn"[^>]*disabled/.test(html) && /id="btnPlayClone"[^>]*disabled/.test(html));
+check('Frontend: klon suara hanya lewat backend dan bergantung gerbang server', /features\.voice_clone|voice_clone/.test(js) && !/elevenlabs/i.test(js.replace(/ElevenLabs|ELEVENLABS/g, '')));
 console.log('\n' + ok + '/' + (ok + bad) + ' lulus'); process.exit(bad ? 1 : 0);

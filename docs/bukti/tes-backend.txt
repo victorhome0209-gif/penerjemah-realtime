@@ -1,0 +1,538 @@
+TAP version 13
+# Subtest: topup: semua nilai tidak valid ditolak 400 dan saldo TIDAK berubah (negatif, nol, desimal, teks, null, tak hingga, terlalu besar)
+ok 1 - topup: semua nilai tidak valid ditolak 400 dan saldo TIDAK berubah (negatif, nol, desimal, teks, null, tak hingga, terlalu besar)
+  ---
+  duration_ms: 125.853067
+  type: 'test'
+  ...
+# Subtest: topup: request_id wajib, id harus 8+ heksadesimal dan cocok persis satu kode
+ok 2 - topup: request_id wajib, id harus 8+ heksadesimal dan cocok persis satu kode
+  ---
+  duration_ms: 43.19967
+  type: 'test'
+  ...
+# Subtest: topup: request_id membuat pengulangan aman (Enter dua kali tidak menambah dua kali), parameter berbeda = 409
+ok 3 - topup: request_id membuat pengulangan aman (Enter dua kali tidak menambah dua kali), parameter berbeda = 409
+  ---
+  duration_ms: 13.313999
+  type: 'test'
+  ...
+# Subtest: topup hanya menambah: kunci "disabled" ditolak (mencegah menonaktifkan kode secara tidak sengaja)
+ok 4 - topup hanya menambah: kunci "disabled" ditolak (mencegah menonaktifkan kode secara tidak sengaja)
+  ---
+  duration_ms: 13.733941
+  type: 'test'
+  ...
+# Subtest: MAX_BALANCE membatasi saldo total (tersedia + ditahan)
+ok 5 - MAX_BALANCE membatasi saldo total (tersedia + ditahan)
+  ---
+  duration_ms: 11.044682
+  type: 'test'
+  ...
+# Subtest: adjust: hanya pengurangan, alasan wajib, tidak boleh negatif, tidak menyentuh kredit yang ditahan
+ok 6 - adjust: hanya pengurangan, alasan wajib, tidak boleh negatif, tidak menyentuh kredit yang ditahan
+  ---
+  duration_ms: 156.985228
+  type: 'test'
+  ...
+# Subtest: disable: harus boolean sungguhan (teks "false" ditolak), idempoten, kode kembali bisa dipakai
+ok 7 - disable: harus boolean sungguhan (teks "false" ditolak), idempoten, kode kembali bisa dipakai
+  ---
+  duration_ms: 42.092815
+  type: 'test'
+  ...
+# Subtest: buat kode: kredit, masa berlaku, batas harian divalidasi ketat; nama dibersihkan
+ok 8 - buat kode: kredit, masa berlaku, batas harian divalidasi ketat; nama dibersihkan
+  ---
+  duration_ms: 17.131336
+  type: 'test'
+  ...
+# Subtest: kill: wajib boolean (teks "false" tidak boleh mematikan atau menghidupkan secara tidak sengaja)
+ok 9 - kill: wajib boolean (teks "false" tidak boleh mematikan atau menghidupkan secara tidak sengaja)
+  ---
+  duration_ms: 8.288355
+  type: 'test'
+  ...
+# Subtest: log admin mencatat setiap perubahan tanpa kode akses atau token
+ok 10 - log admin mencatat setiap perubahan tanpa kode akses atau token
+  ---
+  duration_ms: 13.832582
+  type: 'test'
+  ...
+# Subtest: tebak token admin dibatasi per IP
+ok 11 - tebak token admin dibatasi per IP
+  ---
+  duration_ms: 7.07247
+  type: 'test'
+  ...
+# Subtest: batas biaya INTERNAL = perkiraan: laporan membedakan estimasi, UNKNOWN, dan nilai yang dilaporkan penyedia
+ok 12 - batas biaya INTERNAL = perkiraan: laporan membedakan estimasi, UNKNOWN, dan nilai yang dilaporkan penyedia
+  ---
+  duration_ms: 152.200174
+  type: 'test'
+  ...
+# Subtest: UNKNOWN tetap dihitung dalam anggaran: layanan berhenti walau semua transaksi UNKNOWN
+ok 13 - UNKNOWN tetap dihitung dalam anggaran: layanan berhenti walau semua transaksi UNKNOWN
+  ---
+  duration_ms: 262.348165
+  type: 'test'
+  ...
+# Subtest: konfigurasi rusak membuat server menolak start (bukan memakai nilai berbahaya)
+ok 14 - konfigurasi rusak membuat server menolak start (bukan memakai nilai berbahaya)
+  ---
+  duration_ms: 1.72321
+  type: 'test'
+  ...
+# Subtest: konfigurasi valid dan bawaan aman
+ok 15 - konfigurasi valid dan bawaan aman
+  ---
+  duration_ms: 0.16018
+  type: 'test'
+  ...
+# Subtest: terjemahan: hasil benar, kredit -1, konteks dan arah ikut, tanpa parameter temperature
+ok 16 - terjemahan: hasil benar, kredit -1, konteks dan arah ikut, tanpa parameter temperature
+  ---
+  duration_ms: 98.997795
+  type: 'test'
+  ...
+# Subtest: STT: WAV valid diteruskan multipart ke model gpt-transcribe, kredit -2
+ok 17 - STT: WAV valid diteruskan multipart ke model gpt-transcribe, kredit -2
+  ---
+  duration_ms: 40.307299
+  type: 'test'
+  ...
+# Subtest: TTS: audio diteruskan, kredit dihitung per 100 karakter
+ok 18 - TTS: audio diteruskan, kredit dihitung per 100 karakter
+  ---
+  duration_ms: 21.504149
+  type: 'test'
+  ...
+# Subtest: Idempotency-Key wajib untuk panggilan berbayar
+ok 19 - Idempotency-Key wajib untuk panggilan berbayar
+  ---
+  duration_ms: 12.002031
+  type: 'test'
+  ...
+# Subtest: pengulangan request dengan kunci sama: satu panggilan penyedia, satu pemotongan, balasan sama
+ok 20 - pengulangan request dengan kunci sama: satu panggilan penyedia, satu pemotongan, balasan sama
+  ---
+  duration_ms: 21.925346
+  type: 'test'
+  ...
+# Subtest: dua permintaan kembar bersamaan: hanya satu panggilan dan satu pemotongan
+ok 21 - dua permintaan kembar bersamaan: hanya satu panggilan dan satu pemotongan
+  ---
+  duration_ms: 181.989721
+  type: 'test'
+  ...
+# Subtest: kunci yang sama setelah server restart tidak memotong ganda (409)
+ok 22 - kunci yang sama setelah server restart tidak memotong ganda (409)
+  ---
+  duration_ms: 21.916544
+  type: 'test'
+  ...
+# Subtest: benturan saldo: dua permintaan bersamaan dengan kredit untuk satu saja
+ok 23 - benturan saldo: dua permintaan bersamaan dengan kredit untuk satu saja
+  ---
+  duration_ms: 128.214098
+  type: 'test'
+  ...
+# Subtest: kredit habis = 402 dan tidak memanggil penyedia
+ok 24 - kredit habis = 402 dan tidak memanggil penyedia
+  ---
+  duration_ms: 24.859501
+  type: 'test'
+  ...
+# Subtest: penyedia sibuk (429) dipetakan ke 503 dan kredit kembali
+ok 25 - penyedia sibuk (429) dipetakan ke 503 dan kredit kembali
+  ---
+  duration_ms: 21.686263
+  type: 'test'
+  ...
+# Subtest: batas harian per kode dan pengembalian saat gagal
+ok 26 - batas harian per kode dan pengembalian saat gagal
+  ---
+  duration_ms: 24.65203
+  type: 'test'
+  ...
+# Subtest: batas daily_calls khusus per kode lebih kecil dari bawaan
+ok 27 - batas daily_calls khusus per kode lebih kecil dari bawaan
+  ---
+  duration_ms: 16.033217
+  type: 'test'
+  ...
+# Subtest: validasi input: ditolak gratis tanpa memotong kredit atau memanggil penyedia
+ok 28 - validasi input: ditolak gratis tanpa memotong kredit atau memanggil penyedia
+  ---
+  duration_ms: 68.190436
+  type: 'test'
+  ...
+# Subtest: kode akses kedaluwarsa dapat dibuat lewat expires_days
+ok 29 - kode akses kedaluwarsa dapat dibuat lewat expires_days
+  ---
+  duration_ms: 14.181834
+  type: 'test'
+  ...
+# Subtest: parseWav: menolak header palsu dan menghitung durasi
+ok 30 - parseWav: menolak header palsu dan menghitung durasi
+  ---
+  duration_ms: 4.9331
+  type: 'test'
+  ...
+# Subtest: penyedia MENOLAK (400/401/429): dikembalikan penuh, kunci boleh dicoba lagi, tepat satu panggilan
+ok 31 - penyedia MENOLAK (400/401/429): dikembalikan penuh, kunci boleh dicoba lagi, tepat satu panggilan
+  ---
+  duration_ms: 56.211917
+  type: 'test'
+  ...
+# Subtest: TANPA fallback: satu permintaan = satu panggilan ke penyedia, bahkan saat ditolak berkali-kali
+ok 32 - TANPA fallback: satu permintaan = satu panggilan ke penyedia, bahkan saat ditolak berkali-kali
+  ---
+  duration_ms: 22.390969
+  type: 'test'
+  ...
+# Subtest: batas anggaran bulanan: layanan berhenti, pengembalian memulihkan anggaran
+ok 33 - batas anggaran bulanan: layanan berhenti, pengembalian memulihkan anggaran
+  ---
+  duration_ms: 18.48805
+  type: 'test'
+  ...
+# Subtest: anggaran dikembalikan saat penyedia menolak (pasti tidak ditagih)
+ok 34 - anggaran dikembalikan saat penyedia menolak (pasti tidak ditagih)
+  ---
+  duration_ms: 33.242153
+  type: 'test'
+  ...
+# Subtest: kode akses kedaluwarsa dapat dibuat lewat expires_days
+ok 35 - kode akses kedaluwarsa dapat dibuat lewat expires_days
+  ---
+  duration_ms: 7.105144
+  type: 'test'
+  ...
+# Subtest: STT gpt-transcribe: persis file, model, languages[] (tanpa language, response_format, temperature)
+ok 36 - STT gpt-transcribe: persis file, model, languages[] (tanpa language, response_format, temperature)
+  ---
+  duration_ms: 134.242035
+  type: 'test'
+  ...
+# Subtest: STT model lama (whisper-1): hanya language; override OPENAI_STT_LANG_FIELD; tidak pernah keduanya
+ok 37 - STT model lama (whisper-1): hanya language; override OPENAI_STT_LANG_FIELD; tidak pernah keduanya
+  ---
+  duration_ms: 56.624007
+  type: 'test'
+  ...
+# Subtest: terjemahan: model gpt-6-luna, peran developer, store:false, max_completion_tokens, reasoning_effort none, safety_identifier; tanpa temperature/max_tokens
+ok 38 - terjemahan: model gpt-6-luna, peran developer, store:false, max_completion_tokens, reasoning_effort none, safety_identifier; tanpa temperature/max_tokens
+  ---
+  duration_ms: 15.294711
+  type: 'test'
+  ...
+# Subtest: safety_identifier stabil per kode, berbeda antar kode, tidak memuat kode akses
+ok 39 - safety_identifier stabil per kode, berbeda antar kode, tidak memuat kode akses
+  ---
+  duration_ms: 47.476921
+  type: 'test'
+  ...
+# Subtest: terjemahan: peran system, reasoning dihilangkan, safety id dimatikan lewat konfigurasi
+ok 40 - terjemahan: peran system, reasoning dihilangkan, safety id dimatikan lewat konfigurasi
+  ---
+  duration_ms: 30.139194
+  type: 'test'
+  ...
+# Subtest: TTS gpt-4o-mini-tts: model, voice, input, response_format, instructions; tts-1 tanpa instructions
+ok 41 - TTS gpt-4o-mini-tts: model, voice, input, response_format, instructions; tts-1 tanpa instructions
+  ---
+  duration_ms: 38.958066
+  type: 'test'
+  ...
+# Subtest: TTS: suara tak dikenal ditolak backend tanpa menghubungi penyedia; format keluaran menentukan content-type
+ok 42 - TTS: suara tak dikenal ditolak backend tanpa menghubungi penyedia; format keluaran menentukan content-type
+  ---
+  duration_ms: 49.65664
+  type: 'test'
+  ...
+# Subtest: X-Client-Request-Id = ID transaksi untuk ketiga endpoint, ID penyedia tersimpan; dapat dimatikan
+ok 43 - X-Client-Request-Id = ID transaksi untuk ketiga endpoint, ID penyedia tersimpan; dapat dimatikan
+  ---
+  duration_ms: 63.399149
+  type: 'test'
+  ...
+# Subtest: setiap transaksi = tepat satu permintaan HTTP ke OpenAI (tanpa percobaan ulang) pada semua jenis galat
+ok 44 - setiap transaksi = tepat satu permintaan HTTP ke OpenAI (tanpa percobaan ulang) pada semua jenis galat
+  ---
+  duration_ms: 232.208297
+  type: 'test'
+  ...
+# Subtest: peringatan model: TTS dan STT lama deprecated dengan tanggal, model tak dikenal, model salah jenis
+ok 45 - peringatan model: TTS dan STT lama deprecated dengan tanggal, model tak dikenal, model salah jenis
+  ---
+  duration_ms: 1.820569
+  type: 'test'
+  ...
+# Subtest: mock ketat sungguh menolak permintaan yang menyimpang (uji kebalikan agar kontrak tidak ditulis longgar)
+ok 46 - mock ketat sungguh menolak permintaan yang menyimpang (uji kebalikan agar kontrak tidak ditulis longgar)
+  ---
+  duration_ms: 11.292393
+  type: 'test'
+  ...
+# Subtest: SIGKILL saat permintaan sedang di penyedia: restart -> UNKNOWN, kredit ditahan, kunci sama 409, tidak ditagih dua kali
+ok 47 - SIGKILL saat permintaan sedang di penyedia: restart -> UNKNOWN, kredit ditahan, kunci sama 409, tidak ditagih dua kali
+  ---
+  duration_ms: 1861.897926
+  type: 'test'
+  ...
+# Subtest: rekonsiliasi refund setelah restart: penyedia tidak menagih -> kredit dan anggaran kembali
+ok 48 - rekonsiliasi refund setelah restart: penyedia tidak menagih -> kredit dan anggaran kembali
+  ---
+  duration_ms: 250.422064
+  type: 'test'
+  ...
+# Subtest: restart saat transaksi PENDING belum dikirim: dikembalikan otomatis (penyedia tidak pernah dihubungi)
+ok 49 - restart saat transaksi PENDING belum dikirim: dikembalikan otomatis (penyedia tidak pernah dihubungi)
+  ---
+  duration_ms: 92.679348
+  type: 'test'
+  ...
+# Subtest: restart berulang stabil: dua kali kill dan start tidak mengubah saldo, status, atau jumlah UNKNOWN
+ok 50 - restart berulang stabil: dua kali kill dan start tidak mengubah saldo, status, atau jumlah UNKNOWN
+  ---
+  duration_ms: 428.241361
+  type: 'test'
+  ...
+# Subtest: respons hilang setelah CONFIRMED lalu restart: kunci sama = 409 idem_conflict, kredit tetap dipotong sekali
+ok 51 - respons hilang setelah CONFIRMED lalu restart: kunci sama = 409 idem_conflict, kredit tetap dipotong sekali
+  ---
+  duration_ms: 861.792147
+  type: 'test'
+  ...
+# Subtest: backend menolak start dengan konfigurasi rusak (kredit negatif) dan menjelaskan alasannya
+ok 52 - backend menolak start dengan konfigurasi rusak (kredit negatif) dan menjelaskan alasannya
+  ---
+  duration_ms: 67.387235
+  type: 'test'
+  ...
+# Subtest: health publik, tanpa kunci dan tanpa detail provider
+ok 53 - health publik, tanpa kunci dan tanpa detail provider
+  ---
+  duration_ms: 76.674132
+  type: 'test'
+  ...
+# Subtest: tanpa kode akses atau kode salah = 401, admin token salah = 401
+ok 54 - tanpa kode akses atau kode salah = 401, admin token salah = 401
+  ---
+  duration_ms: 18.704325
+  type: 'test'
+  ...
+# Subtest: admin tanpa ADMIN_TOKEN terkonfigurasi selalu ditolak
+ok 55 - admin tanpa ADMIN_TOKEN terkonfigurasi selalu ditolak
+  ---
+  duration_ms: 3.926482
+  type: 'test'
+  ...
+# Subtest: kode akses disimpan ber-hash, tidak polos di berkas data
+ok 56 - kode akses disimpan ber-hash, tidak polos di berkas data
+  ---
+  duration_ms: 10.697985
+  type: 'test'
+  ...
+# Subtest: /api/me menampilkan status tanpa membocorkan kunci
+ok 57 - /api/me menampilkan status tanpa membocorkan kunci
+  ---
+  duration_ms: 9.003296
+  type: 'test'
+  ...
+# Subtest: CORS: origin yang diizinkan lolos, origin lain ditolak 403 termasuk preflight
+ok 58 - CORS: origin yang diizinkan lolos, origin lain ditolak 403 termasuk preflight
+  ---
+  duration_ms: 11.595053
+  type: 'test'
+  ...
+# Subtest: CORS bukan pengganti autentikasi: origin sah tanpa kode tetap 401
+ok 59 - CORS bukan pengganti autentikasi: origin sah tanpa kode tetap 401
+  ---
+  duration_ms: 4.646955
+  type: 'test'
+  ...
+# Subtest: ALLOWED_ORIGINS kosong: tidak ada origin browser yang diizinkan
+ok 60 - ALLOWED_ORIGINS kosong: tidak ada origin browser yang diizinkan
+  ---
+  duration_ms: 3.66677
+  type: 'test'
+  ...
+# Subtest: panggilan berbayar MATI secara bawaan dan tidak menghubungi OpenAI
+ok 61 - panggilan berbayar MATI secara bawaan dan tidak menghubungi OpenAI
+  ---
+  duration_ms: 30.304695
+  type: 'test'
+  ...
+# Subtest: tombol darurat admin mematikan dan menghidupkan layanan berbayar
+ok 62 - tombol darurat admin mematikan dan menghidupkan layanan berbayar
+  ---
+  duration_ms: 32.621925
+  type: 'test'
+  ...
+# Subtest: batas laju per kode: 429 setelah melewati batas
+ok 63 - batas laju per kode: 429 setelah melewati batas
+  ---
+  duration_ms: 19.714592
+  type: 'test'
+  ...
+# Subtest: percobaan tebak kode dibatasi per IP
+ok 64 - percobaan tebak kode dibatasi per IP
+  ---
+  duration_ms: 12.188745
+  type: 'test'
+  ...
+# Subtest: kode kedaluwarsa dan kode dinonaktifkan ditolak
+ok 65 - kode kedaluwarsa dan kode dinonaktifkan ditolak
+  ---
+  duration_ms: 13.010192
+  type: 'test'
+  ...
+# Subtest: provider Anthropic dan ElevenLabs nonaktif walau kunci terisi
+ok 66 - provider Anthropic dan ElevenLabs nonaktif walau kunci terisi
+  ---
+  duration_ms: 13.337526
+  type: 'test'
+  ...
+# Subtest: provider tidak dikenal = 503 tanpa berpindah provider diam-diam
+ok 67 - provider tidak dikenal = 503 tanpa berpindah provider diam-diam
+  ---
+  duration_ms: 14.573404
+  type: 'test'
+  ...
+# Subtest: log tidak berisi kunci, kode akses, token admin, teks percakapan, atau audio
+ok 68 - log tidak berisi kunci, kode akses, token admin, teks percakapan, atau audio
+  ---
+  duration_ms: 32.854607
+  type: 'test'
+  ...
+# Subtest: galat penyedia tidak membocorkan kunci ke klien
+ok 69 - galat penyedia tidak membocorkan kunci ke klien
+  ---
+  duration_ms: 11.20455
+  type: 'test'
+  ...
+# Subtest: kunci OpenAI hanya dikirim server ke OpenAI, tidak pernah ke klien
+ok 70 - kunci OpenAI hanya dikirim server ke OpenAI, tidak pernah ke klien
+  ---
+  duration_ms: 36.964083
+  type: 'test'
+  ...
+# Subtest: peringatan konfigurasi berbahaya muncul saat start
+ok 71 - peringatan konfigurasi berbahaya muncul saat start
+  ---
+  duration_ms: 0.505978
+  type: 'test'
+  ...
+# Subtest: recover: PENDING yang BELUM dikirim -> FAILED dan dikembalikan (penyedia tidak pernah dihubungi)
+ok 72 - recover: PENDING yang BELUM dikirim -> FAILED dan dikembalikan (penyedia tidak pernah dihubungi)
+  ---
+  duration_ms: 9.55401
+  type: 'test'
+  ...
+# Subtest: recover: PENDING yang SUDAH dikirim -> UNKNOWN, kredit dan anggaran TETAP ditahan, kunci terkunci
+ok 73 - recover: PENDING yang SUDAH dikirim -> UNKNOWN, kredit dan anggaran TETAP ditahan, kunci terkunci
+  ---
+  duration_ms: 4.366661
+  type: 'test'
+  ...
+# Subtest: transisi terlarang ditolak: refund transaksi terkirim, konfirmasi dua kali, ubah status akhir
+ok 74 - transisi terlarang ditolak: refund transaksi terkirim, konfirmasi dua kali, ubah status akhir
+  ---
+  duration_ms: 2.865538
+  type: 'test'
+  ...
+# Subtest: recover tidak menyentuh transaksi yang sedang dikerjakan proses ini (live)
+ok 75 - recover tidak menyentuh transaksi yang sedang dikerjakan proses ini (live)
+  ---
+  duration_ms: 2.405947
+  type: 'test'
+  ...
+# Subtest: gagal menyimpan: begin ditolak (fail-closed), saldo dan anggaran dipulihkan
+ok 76 - gagal menyimpan: begin ditolak (fail-closed), saldo dan anggaran dipulihkan
+  ---
+  duration_ms: 1.264605
+  type: 'test'
+  ...
+# Subtest: migrasi v2: hold yatim -> UNKNOWN, kunci idempotensi -> CONFIRMED; saldo rusak -> 0 dan dicatat
+ok 77 - migrasi v2: hold yatim -> UNKNOWN, kunci idempotensi -> CONFIRMED; saldo rusak -> 0 dan dicatat
+  ---
+  duration_ms: 1.220787
+  type: 'test'
+  ...
+# Subtest: migrasi v1: berkas codes.json datar dari backend lama tetap terbaca
+ok 78 - migrasi v1: berkas codes.json datar dari backend lama tetap terbaca
+  ---
+  duration_ms: 0.63894
+  type: 'test'
+  ...
+# Subtest: restart: backend baru memulihkan transaksi warisan saat start (log recover, saldo tampil di /api/me)
+ok 79 - restart: backend baru memulihkan transaksi warisan saat start (log recover, saldo tampil di /api/me)
+  ---
+  duration_ms: 78.27322
+  type: 'test'
+  ...
+# Subtest: UNKNOWN: timeout penyedia TIDAK dikembalikan; kunci sama = 409; kunci baru = transaksi terpisah; X-Client-Request-Id = ID transaksi
+ok 80 - UNKNOWN: timeout penyedia TIDAK dikembalikan; kunci sama = 409; kunci baru = transaksi terpisah; X-Client-Request-Id = ID transaksi
+  ---
+  duration_ms: 198.717781
+  type: 'test'
+  ...
+# Subtest: UNKNOWN: respons terputus, JSON rusak, balasan kosong -> penyedia sudah memproses, kredit tetap ditahan
+ok 81 - UNKNOWN: respons terputus, JSON rusak, balasan kosong -> penyedia sudah memproses, kredit tetap ditahan
+  ---
+  duration_ms: 183.439791
+  type: 'test'
+  ...
+# Subtest: 5xx dari penyedia = UNKNOWN secara bawaan; REFUND_ON_PROVIDER_5XX=true = dikembalikan
+ok 82 - 5xx dari penyedia = UNKNOWN secara bawaan; REFUND_ON_PROVIDER_5XX=true = dikembalikan
+  ---
+  duration_ms: 38.5469
+  type: 'test'
+  ...
+# Subtest: pasti tidak terkirim (koneksi ditolak): FAILED dan dikembalikan, bukan UNKNOWN
+ok 83 - pasti tidak terkirim (koneksi ditolak): FAILED dan dikembalikan, bukan UNKNOWN
+  ---
+  duration_ms: 12.508641
+  type: 'test'
+  ...
+# Subtest: rekonsiliasi admin: confirm, refund, refund_keep_cost; hanya UNKNOWN; idempoten; catatan wajib
+ok 84 - rekonsiliasi admin: confirm, refund, refund_keep_cost; hanya UNKNOWN; idempoten; catatan wajib
+  ---
+  duration_ms: 399.544815
+  type: 'test'
+  ...
+# Subtest: rekonsiliasi idempoten: request_id yang sama tidak mengubah saldo dua kali
+ok 85 - rekonsiliasi idempoten: request_id yang sama tidak mengubah saldo dua kali
+  ---
+  duration_ms: 139.08287
+  type: 'test'
+  ...
+# Subtest: CONFIRMED yang hasilnya hilang: kunci sama setelah restart = 409 idem_conflict, tidak dipotong dua kali
+ok 86 - CONFIRMED yang hasilnya hilang: kunci sama setelah restart = 409 idem_conflict, tidak dipotong dua kali
+  ---
+  duration_ms: 28.536064
+  type: 'test'
+  ...
+# Subtest: penyimpanan gagal saat berjalan: permintaan ditolak SEBELUM menghubungi penyedia, saldo utuh
+ok 87 - penyimpanan gagal saat berjalan: permintaan ditolak SEBELUM menghubungi penyedia, saldo utuh
+  ---
+  duration_ms: 5.98261
+  type: 'test'
+  ...
+# Subtest: invarian saldo setelah kekacauan acak: kredit + ditahan + terpakai = kredit awal, audit bersih
+ok 88 - invarian saldo setelah kekacauan acak: kredit + ditahan + terpakai = kredit awal, audit bersih
+  ---
+  duration_ms: 560.758913
+  type: 'test'
+  ...
+1..88
+# tests 88
+# suites 0
+# pass 88
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 19348.510421

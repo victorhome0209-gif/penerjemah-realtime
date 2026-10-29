@@ -1,26 +1,34 @@
 // VocalBridge backend V1. Menyimpan kunci API di server, memotong kredit, membatasi biaya.
 // Dasar kode: backend tanpa dependensi dari sesi sebelumnya (kode akses ber-hash, kredit, endpoint admin),
-// kini dengan tahan/kembalikan kredit, idempotensi, batas anggaran, validasi audio, dan kontrak provider.
+// kini dengan mesin status transaksi (PENDING/CONFIRMED/FAILED/UNKNOWN), pemulihan aman saat restart, idempotensi,
+// batas anggaran, validasi audio/admin, timeout, dan kontrak provider.
 // Butuh Node.js 20 ke atas. Tanpa dependensi luar.
 'use strict';
 const http = require('http');
 const crypto = require('crypto');
-const { loadConfig } = require('./lib/config');
+const { loadConfig, ConfigError } = require('./lib/config');
 const { Store } = require('./lib/store');
 const { buildProviders } = require('./lib/providers');
-const { HttpError, redact, parseWav, RateLimiter, makeLogger } = require('./lib/util');
+const { modelWarnings } = require('./lib/models');
+const { HttpError, redact, intIn, bool, cleanText, parseWav, RateLimiter, makeLogger } = require('./lib/util');
 
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 
 function createApp(cfg, { logSink } = {}) {
-  const store = new Store(cfg.dataDir, { monthlyBudgetUsd: cfg.monthlyBudgetUsd, dailyCalls: cfg.dailyCallsPerCode });
+  const store = new Store(cfg.dataDir, { monthlyBudgetUsd: cfg.monthlyBudgetUsd, dailyCalls: cfg.dailyCallsPerCode, maxBalance: cfg.maxBalance, maxCreditsPerOp: cfg.maxCreditsPerOp });
   const providers = buildProviders(cfg);
   const log = makeLogger(logSink);
   const ipLimit = new RateLimiter(cfg.ipRatePerMin), failLimit = new RateLimiter(cfg.ipAuthFailPerMin), codeLimit = new RateLimiter(cfg.ratePerMin);
-  const IDEM = new Map();
+  const IDEM = new Map();   // hasil transaksi yang berhasil (memori saja, tidak pernah ke disk)
+  const live = new Set();   // ID transaksi yang sedang dikerjakan proses INI
 
-  store.sweep(0); // tahanan dari proses sebelumnya pasti yatim: kembalikan
-  const sweeper = setInterval(() => { try { store.sweep(cfg.holdTtlMs); } catch (_) {} }, 30000); sweeper.unref();
+  // PEMULIHAN SAAT START. Transaksi PENDING warisan proses sebelumnya:
+  //   belum dikirim ke penyedia -> FAILED dan dikembalikan (aman, penyedia tidak pernah dihubungi)
+  //   sudah dikirim             -> UNKNOWN, kredit TETAP ditahan (penyedia mungkin sudah menagih; direkonsiliasi admin)
+  const recovered = store.recover();
+  if (recovered.failed || recovered.unknown) log({ evt: 'recover', failed_refunded: recovered.failed, unknown_held: recovered.unknown });
+  const issues = store.audit(); if (issues.length) log({ evt: 'audit_warning', issues: issues.slice(0, 10) });
+  const sweeper = setInterval(() => { try { store.recover({ live, olderThanMs: cfg.holdTtlMs }); } catch (_) {} }, 30000); sweeper.unref();
 
   const clientIp = req => (cfg.trustProxy && req.headers['x-forwarded-for'] ? String(req.headers['x-forwarded-for']).split(',')[0].trim() : req.socket.remoteAddress) || 'x';
 
@@ -65,13 +73,27 @@ function createApp(cfg, { logSink } = {}) {
     if (!codeLimit.hit(a.id)) throw new HttpError(429, 'terlalu banyak permintaan', 'rate_limited');
     return a;
   }
-  function admin(req) {
+  function admin(req, ip) {
     const t = String(req.headers['x-admin-token'] || '');
     const ok = cfg.adminToken && t.length === cfg.adminToken.length && crypto.timingSafeEqual(Buffer.from(t), Buffer.from(cfg.adminToken));
-    if (!ok) throw new HttpError(401, 'token admin salah', 'unauthorized');
+    if (!ok) { if (!failLimit.hit(ip)) throw new HttpError(429, 'terlalu banyak percobaan', 'rate_limited'); throw new HttpError(401, 'token admin salah', 'unauthorized'); }
   }
 
-  // ---------- jalur berbayar: validasi gratis -> tahan kredit -> panggil provider -> konfirmasi atau kembalikan ----------
+  // Menutup transaksi yang gagal sesuai KEPASTIAN hasilnya di penyedia (lihat lib/store.js dan lib/providers/common.js).
+  function settleFailure(h, sent, e) {
+    const code = (e && e.code) || 'error';
+    if (!sent) { // gagal sebelum permintaan keluar: penyedia tidak pernah dihubungi
+      try { store.fail(h, 'tidak_terkirim:' + code, { definitive: true }); } catch (_) {}
+      return e instanceof HttpError ? e : new HttpError(503, 'permintaan tidak dapat diproses', 'not_processed');
+    }
+    if (e instanceof HttpError && (e.outcome === 'rejected' || e.outcome === 'not_sent')) { store.fail(h, code, { definitive: true }); return e; }
+    store.markUnknown(h, code); // timeout, koneksi putus, 5xx, respons rusak, galat tak dikenal: JANGAN dikembalikan otomatis
+    log({ evt: 'txn_unknown', txn: h.txn, code });
+    const out = new HttpError(e && e.status === 504 ? 504 : 502, 'Status pemrosesan belum pasti: penyedia mungkin sudah memproses. Kredit ditahan sampai administrator memeriksa.', 'provider_unknown');
+    out.txn = h.txn; return out;
+  }
+
+  // ---------- jalur berbayar: validasi gratis -> transaksi PENDING -> tulis-dulu -> satu panggilan penyedia -> CONFIRMED/FAILED/UNKNOWN ----------
   async function paid(a, req, kind, prep) {
     if (!cfg.paidEnabled || store.killed) throw new HttpError(503, 'layanan berbayar sedang dinonaktifkan oleh administrator', 'paid_disabled');
     const key = String(req.headers['idempotency-key'] || '');
@@ -85,9 +107,16 @@ function createApp(cfg, { logSink } = {}) {
     const hit = IDEM.get(mk);
     if (hit) { const out = await hit.promise; return { out, replay: true }; }
     const promise = (async () => {
-      const hold = store.reserve(a.id, { credits: p.credits, usd: p.usd, key });
-      try { const out = await p.run(provider); store.capture(hold); return out; }
-      catch (e) { store.release(hold); throw e; }
+      const h = store.begin(a.id, { kind, credits: p.credits, usd: p.usd, key });
+      live.add(h.txn);
+      let sent = false;
+      try {
+        store.markSent(h); sent = true;
+        const r = await p.run(provider, { txn: h.txn, codeId: a.id });
+        store.confirm(h, { usage: r.usage, providerRequestId: r.providerRequestId });
+        return r.res;
+      } catch (e) { throw settleFailure(h, sent, e); }
+      finally { live.delete(h.txn); }
     })();
     IDEM.set(mk, { promise, ts: now });
     try { return { out: await promise, replay: false }; }
@@ -103,7 +132,7 @@ function createApp(cfg, { logSink } = {}) {
     const wav = await readBody(req, cfg.maxAudioBytes);
     const info = parseWav(wav, { maxSeconds: cfg.maxAudioSeconds });
     return { credits: cfg.cost.stt, usd: Math.max(0.0003, info.seconds / 60 * cfg.usd.sttPerMin),
-      run: async provider => { const r = await provider.transcribe({ wav, lang }); return jsonOut({ text: r.text, seconds: +info.seconds.toFixed(2) }); } };
+      run: async (provider, ctx) => { const r = await provider.transcribe({ wav, lang }, ctx); return { res: jsonOut({ text: r.text, seconds: +info.seconds.toFixed(2) }), usage: r.usage, providerRequestId: r.providerRequestId }; } };
   };
   const translatePrep = req => async () => {
     const b = await readJson(req);
@@ -112,7 +141,7 @@ function createApp(cfg, { logSink } = {}) {
     if (!['id', 'en'].includes(b.src) || !['id', 'en'].includes(b.tgt) || b.src === b.tgt) throw new HttpError(400, 'arah bahasa tidak valid', 'bad_lang');
     const context = Array.isArray(b.context) ? b.context.slice(-4).map(h => ({ side: h && h.side === 'me' ? 'me' : 'them', text: String((h && h.text) || '').slice(0, 300) })) : [];
     return { credits: cfg.cost.translate, usd: cfg.usd.translatePerCall,
-      run: async provider => { const r = await provider.translate({ text, src: b.src, tgt: b.tgt, context }); return jsonOut({ text: r.text, engine: r.engine }); } };
+      run: async (provider, ctx) => { const r = await provider.translate({ text, src: b.src, tgt: b.tgt, context }, ctx); return { res: jsonOut({ text: r.text, engine: r.engine }), usage: r.usage, providerRequestId: r.providerRequestId }; } };
   };
   const ttsPrep = req => async provider => {
     const b = await readJson(req);
@@ -122,7 +151,7 @@ function createApp(cfg, { logSink } = {}) {
     if (b.voice != null && !provider.validVoice(b.voice)) throw new HttpError(400, 'suara tidak dikenal', 'bad_voice');
     const credits = Math.max(1, Math.ceil(text.length / 100)) * cfg.cost.ttsPer100;
     return { credits, usd: Math.max(0.0005, text.length / cfg.usd.ttsCharsPerSec / 60 * cfg.usd.ttsPerMin),
-      run: async prov => { const r = await prov.synthesize({ text, lang: b.lang, voice: b.voice }); return { status: 200, headers: { 'Content-Type': r.contentType }, body: r.audio }; } };
+      run: async (prov, ctx) => { const r = await prov.synthesize({ text, lang: b.lang, voice: b.voice }, ctx); return { res: { status: 200, headers: { 'Content-Type': r.contentType }, body: r.audio }, usage: r.usage, providerRequestId: r.providerRequestId }; } };
   };
 
   // ---------- router ----------
@@ -139,27 +168,49 @@ function createApp(cfg, { logSink } = {}) {
       if (!ipLimit.hit(ip)) throw new HttpError(429, 'terlalu banyak permintaan', 'rate_limited');
 
       if (route === 'GET /' || route === 'GET /api/health')
-        return sendJson(res, 200, { ok: true, service: 'vocalbridge-backend', version: VERSION, paid_enabled: cfg.paidEnabled && !store.killed });
+        return sendJson(res, 200, { ok: true, service: 'vocalbridge-backend', version: VERSION, paid_enabled: cfg.paidEnabled && !store.killed, store_ok: store.healthy });
 
-      if (route === 'POST /admin/codes') {
-        admin(req); const b = await readJson(req); const credits = Math.floor(+b.credits);
-        if (!(credits > 0 && credits <= 1e6)) throw new HttpError(400, 'credits harus 1 sampai 1.000.000', 'bad_credits');
-        const r = store.createCode({ name: b.name, credits, expiresDays: +b.expires_days || 0, dailyCalls: +b.daily_calls || 0 });
-        return sendJson(res, 200, { code: r.code, credits, expires: r.expires, note: 'Simpan kode ini, tidak bisa ditampilkan lagi.' });
+      if (url.pathname.startsWith('/admin/')) {
+        admin(req, ip);
+        if (route === 'POST /admin/codes') {
+          const b = await readJson(req);
+          const credits = intIn(b.credits, 1, cfg.maxCreditsPerOp, 'credits');
+          const expiresDays = b.expires_days == null ? 0 : intIn(b.expires_days, 0, 365, 'expires_days');
+          const dailyCalls = b.daily_calls == null ? 0 : intIn(b.daily_calls, 0, 100000, 'daily_calls');
+          const r = store.createCode({ name: cleanText(b.name, 60, 'name'), credits, expiresDays, dailyCalls });
+          return sendJson(res, 200, { code: r.code, id: r.id, credits, expires: r.expires, note: 'Simpan kode ini, tidak bisa ditampilkan lagi.' });
+        }
+        if (route === 'GET /admin/codes') return sendJson(res, 200, store.list());
+        if (route === 'POST /admin/topup') {
+          const b = await readJson(req);
+          if ('disabled' in b) throw new HttpError(400, 'topup hanya menambah kredit; untuk menonaktifkan pakai POST /admin/disable', 'use_disable');
+          return sendJson(res, 200, store.topup(b.id, b.credits, b.request_id));
+        }
+        if (route === 'POST /admin/adjust') { const b = await readJson(req); return sendJson(res, 200, store.adjust(b.id, b.delta, b.reason, b.request_id)); }
+        if (route === 'POST /admin/disable') { const b = await readJson(req); return sendJson(res, 200, store.setDisabled(b.id, b.disabled, b.request_id)); }
+        if (route === 'GET /admin/transactions') {
+          const st = url.searchParams.get('state'); if (st && !['PENDING', 'CONFIRMED', 'FAILED', 'UNKNOWN'].includes(st)) throw new HttpError(400, 'state tidak valid', 'bad_state');
+          return sendJson(res, 200, store.listTxns({ state: st || undefined, limit: Math.min(500, Math.max(1, +url.searchParams.get('limit') || 100)) }));
+        }
+        if (route === 'POST /admin/transactions/resolve') { const b = await readJson(req); return sendJson(res, 200, store.resolve(b.txn, b.resolution, b.note, b.request_id)); }
+        if (route === 'GET /admin/usage') return sendJson(res, 200, Object.assign(store.usage(), { paid_env_enabled: cfg.paidEnabled, warnings: modelWarnings(cfg),
+          note: 'Anggaran ini PERKIRAAN internal. Batas belanja yang mengikat ada di dashboard OpenAI dan harus diatur manual.' }));
+        if (route === 'GET /admin/log') return sendJson(res, 200, store.adminLog.slice(-100));
+        if (route === 'GET /admin/audit') return sendJson(res, 200, { issues: store.audit() });
+        if (route === 'POST /admin/kill') { const b = await readJson(req); return sendJson(res, 200, { killed: store.setKill(!bool(b.enabled, 'enabled')) }); }
+        throw new HttpError(404, 'tidak ditemukan', 'not_found');
       }
-      if (route === 'GET /admin/codes') { admin(req); return sendJson(res, 200, store.list()); }
-      if (route === 'POST /admin/topup') { admin(req); const b = await readJson(req); return sendJson(res, 200, store.topup(b.id, b.credits, b.disabled)); }
-      if (route === 'GET /admin/usage') { admin(req); return sendJson(res, 200, Object.assign(store.usage(), { paid_env_enabled: cfg.paidEnabled })); }
-      if (route === 'POST /admin/kill') { admin(req); const b = await readJson(req); return sendJson(res, 200, { killed: store.setKill(b.enabled === false) }); }
 
       if (url.pathname.startsWith('/api/')) {
         const a = auth(req, ip); cid = a.id.slice(0, 8);
         const left = { 'X-Credits-Left': String(a.rec.credits) };
         if (route === 'GET /api/me')
-          return sendJson(res, 200, { name: a.rec.name, credits: a.rec.credits, expires: a.rec.expires || null, paid_enabled: cfg.paidEnabled && !store.killed, providers: providers.status(),
+          return sendJson(res, 200, { name: a.rec.name, credits: a.rec.credits, held: a.rec.held, unknown: Object.values(a.rec.txns).filter(t => t.state === 'UNKNOWN').length, expires: a.rec.expires || null,
+            paid_enabled: cfg.paidEnabled && !store.killed, providers: providers.status(),
+            features: { voice_clone: { enabled: false, reason: 'Fitur Pro nonaktif sampai backend dan persetujuan siap' } },
             limits: { max_audio_seconds: cfg.maxAudioSeconds, max_translate_chars: cfg.maxTranslateChars, max_tts_chars: cfg.maxTtsChars },
             ai_notice: 'Audio dan teks dikirim ke OpenAI melalui server VocalBridge. Audio tidak disimpan. Suara terjemahan dihasilkan AI, bukan suara manusia.' }, left);
-        if (route === 'POST /api/clone') throw new HttpError(503, 'klon suara dinonaktifkan di V1', 'provider_disabled');
+        if (route === 'POST /api/clone') throw new HttpError(503, 'klon suara adalah fitur Pro yang nonaktif sampai backend dan persetujuan siap', 'feature_disabled');
         let kind = null, prep = null;
         if (route === 'POST /api/stt') { kind = 'stt'; prep = sttPrep(req, url); }
         else if (route === 'POST /api/translate') { kind = 'translate'; prep = translatePrep(req); }
@@ -176,11 +227,12 @@ function createApp(cfg, { logSink } = {}) {
       if (!e.status) log({ rid, err: redact(e && e.message).slice(0, 200) });
       else if (status >= 500) log({ rid, err: redact(e.message).slice(0, 200), code: e.code });
       const extra = e.credits != null ? { 'X-Credits-Left': String(e.credits) } : {};
-      if (!res.headersSent) sendJson(res, status, { error: e.status ? e.message : 'kesalahan server', code: e.code || 'server_error' }, extra); else res.end();
+      const body = { error: e.status ? e.message : 'kesalahan server', code: e.code || 'server_error' }; if (e.txn) body.txn = e.txn;
+      if (!res.headersSent) sendJson(res, status, body, extra); else res.end();
     }
   });
   server.on('close', () => clearInterval(sweeper));
-  return { server, store, providers, cfg };
+  return { server, store, providers, cfg, recovered };
 }
 
 function warnings(cfg) {
@@ -189,15 +241,17 @@ function warnings(cfg) {
   if (!cfg.origins.length && !cfg.allowAnyOrigin) w.push('ALLOWED_ORIGINS kosong: tidak ada web yang boleh memanggil server ini');
   if (cfg.allowAnyOrigin) w.push('ALLOW_ANY_ORIGIN aktif: hanya untuk pengembangan lokal');
   if (cfg.paidEnabled && !cfg.openai.key) w.push('PAID_API_ENABLED=true tetapi OPENAI_API_KEY kosong');
-  return w;
+  if (cfg.paidEnabled) w.push('Batas anggaran internal (MONTHLY_BUDGET_USD) hanya perkiraan: pasang juga batas belanja di dashboard OpenAI');
+  return w.concat(modelWarnings(cfg));
 }
 
 if (require.main === module) {
-  const cfg = loadConfig();
+  let cfg;
+  try { cfg = loadConfig(); } catch (e) { if (e instanceof ConfigError) { console.error(JSON.stringify({ fatal: e.message })); process.exit(1); } throw e; }
   const app = createApp(cfg);
   app.server.listen(cfg.port, () => {
-    console.log(JSON.stringify({ t: new Date().toISOString(), msg: 'VocalBridge backend jalan', port: cfg.port, version: VERSION, paid_enabled: cfg.paidEnabled,
-      openai_key_set: !!cfg.openai.key, admin_set: !!cfg.adminToken, origins: cfg.origins }));
+    console.log(JSON.stringify({ t: new Date().toISOString(), msg: 'VocalBridge backend jalan', port: app.server.address().port, version: VERSION, paid_enabled: cfg.paidEnabled,
+      openai_key_set: !!cfg.openai.key, admin_set: !!cfg.adminToken, origins: cfg.origins, recovered: app.recovered, migrated_codes: app.store.migrated }));
     warnings(cfg).forEach(m => console.warn(JSON.stringify({ warn: m })));
   });
   const stop = () => app.server.close(() => process.exit(0));

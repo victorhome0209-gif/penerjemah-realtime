@@ -6,11 +6,10 @@ const fs = require('fs');
 const path = require('path');
 const { startApp, makeWav } = require('./helpers');
 const { parseWav } = require('../lib/util');
-const { Store } = require('../lib/store');
 
 const apps = [];
 const boot = async (env, seed) => { const a = await startApp(env, seed); apps.push(a); return a; };
-after(async () => { for (const a of apps) await a.close(); });
+after(async () => { for (const a of apps) { assert.deepEqual(a.mock.violations, [], 'permintaan ke OpenAI melanggar kontrak dokumentasi'); assert.deepEqual(a.audit(), [], 'audit konsistensi saldo'); await a.close(); } });
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
 test('terjemahan: hasil benar, kredit -1, konteks dan arah ikut, tanpa parameter temperature', async () => {
@@ -91,21 +90,6 @@ test('kredit habis = 402 dan tidak memanggil penyedia', async () => {
   assert.equal(r.status, 402); assert.equal((await r.json()).code, 'no_credit'); assert.equal(a.mock.calls.translate, 1);
 });
 
-test('penyedia gagal: kredit dikembalikan penuh dan kunci boleh dicoba lagi', async () => {
-  const a = await boot(); const code = await a.mkCode(10); a.mock.fail.stt = 500;
-  const k = 'kunci-gagal-0001';
-  const r = await a.stt(code, { key: k }); assert.equal(r.status, 502);
-  assert.equal(await a.credits(code), 10); assert.equal(a.store.codes[a.store.hash(code)].held, 0);
-  a.mock.fail.stt = null;
-  const r2 = await a.stt(code, { key: k }); assert.equal(r2.status, 200); assert.equal(await a.credits(code), 8);
-});
-
-test('timeout penyedia = 504 dan kredit kembali', async () => {
-  const a = await boot({ UPSTREAM_TIMEOUT_MS: '120' }); const code = await a.mkCode(10); a.mock.delay = 600;
-  const r = await a.translate(code); assert.equal(r.status, 504); a.mock.delay = 0;
-  assert.equal(await a.credits(code), 10);
-});
-
 test('penyedia sibuk (429) dipetakan ke 503 dan kredit kembali', async () => {
   const a = await boot(); const code = await a.mkCode(10); a.mock.fail.tts = 429;
   const r = await a.tts(code); assert.equal(r.status, 503); assert.equal(await a.credits(code), 10);
@@ -121,20 +105,6 @@ test('batas harian per kode dan pengembalian saat gagal', async () => {
 test('batas daily_calls khusus per kode lebih kecil dari bawaan', async () => {
   const a = await boot(); const code = await a.mkCode(50, { daily_calls: 1 });
   assert.equal((await a.translate(code)).status, 200); assert.equal((await a.translate(code)).status, 429);
-});
-
-test('batas anggaran bulanan: layanan berhenti, pengembalian memulihkan anggaran', async () => {
-  const a = await boot({ MONTHLY_BUDGET_USD: '0.001', USD_TRANSLATE_PER_CALL: '0.0004' }); const code = await a.mkCode(50);
-  assert.equal((await a.translate(code)).status, 200); assert.equal((await a.translate(code)).status, 200);
-  const r = await a.translate(code); assert.equal(r.status, 503); assert.equal((await r.json()).code, 'budget_exceeded');
-  assert.equal(a.mock.calls.translate, 2);
-  const u = await (await a.adminCall('/admin/usage')).json(); assert.ok(u.spentUsdEstimate <= 0.001);
-});
-
-test('anggaran dikembalikan saat panggilan gagal', async () => {
-  const a = await boot({ MONTHLY_BUDGET_USD: '0.001', USD_TRANSLATE_PER_CALL: '0.0004' }); const code = await a.mkCode(50);
-  a.mock.fail.translate = 500; for (let i = 0; i < 4; i++) assert.equal((await a.translate(code)).status, 502);
-  a.mock.fail.translate = null; assert.equal((await a.translate(code)).status, 200);
 });
 
 test('validasi input: ditolak gratis tanpa memotong kredit atau memanggil penyedia', async () => {
@@ -160,54 +130,53 @@ test('validasi input: ditolak gratis tanpa memotong kredit atau memanggil penyed
   assert.equal(a.mock.calls.stt + a.mock.calls.translate + a.mock.calls.tts, 0); assert.equal(await a.credits(code), 10);
 });
 
-test('fallback: OpenAI menolak languages[] -> dicoba language, lalu diingat', async () => {
-  const a = await boot(); const code = await a.mkCode(20); a.mock.rejectLanguagesField = true;
-  const r = await a.stt(code); assert.equal(r.status, 200); assert.equal(a.mock.calls.stt, 2); assert.equal(await a.credits(code), 18);
-  assert.ok(a.mock.seen[1].body.toString('latin1').includes('name="language"'));
-  await a.stt(code); assert.equal(a.mock.calls.stt, 3); // percobaan berikutnya langsung memakai bentuk yang diterima
-});
-
-test('fallback: OpenAI menolak reasoning_effort -> dicoba tanpa itu', async () => {
-  const a = await boot(); const code = await a.mkCode(20); a.mock.rejectReasoning = true;
-  const r = await a.translate(code); assert.equal(r.status, 200); assert.equal(a.mock.calls.translate, 2); assert.equal(await a.credits(code), 19);
-});
-
-test('top-up dan daftar kode: id pendek, tanpa kode asli', async () => {
-  const a = await boot(); const code = await a.mkCode(5, { name: 'Budi' });
-  const list = await (await a.adminCall('/admin/codes')).json();
-  assert.equal(list[0].name, 'Budi'); assert.equal(list[0].id.length, 8); assert.ok(!JSON.stringify(list).includes(code));
-  const t = await (await a.adminCall('/admin/topup', { id: list[0].id, credits: 100 })).json();
-  assert.equal(t.credits, 105);
-});
-
 test('kode akses kedaluwarsa dapat dibuat lewat expires_days', async () => {
   const a = await boot(); await a.mkCode(5, { expires_days: 7 });
   const list = await (await a.adminCall('/admin/codes')).json();
   assert.ok(Date.parse(list[0].expires) > Date.now() + 6 * 86400000);
 });
 
-test('Store: tahanan yatim dikembalikan saat sweep', async () => {
-  const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'vb-s-'));
-  const s = new Store(dir, { monthlyBudgetUsd: 1, dailyCalls: 10 });
-  const { code } = s.createCode({ name: 'x', credits: 10 }); const { id } = s.authenticate(code);
-  const h = s.reserve(id, { credits: 4, usd: 0.1, key: 'kunci-yatim-01' });
-  assert.equal(s.codes[id].credits, 6); assert.equal(s.codes[id].held, 4);
-  s.codes[id].holds[h.holdId].ts = Date.now() - 10 * 60000;
-  assert.equal(s.sweep(60000), 1);
-  assert.equal(s.codes[id].credits, 10); assert.equal(s.codes[id].held, 0); assert.equal(s.usage().spentUsdEstimate, 0);
-  const s2 = new Store(dir); assert.equal(s2.codes[id].credits, 10); // tersimpan di berkas
-});
-
-test('Store: migrasi dari berkas backend lama (codes.json datar)', async () => {
-  const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'vb-m-'));
-  fs.writeFileSync(path.join(dir, 'codes.json'), JSON.stringify({ abc123: { name: 'Lama', credits: 42, created: '2026-10-28T00:00:00Z', used: 8 } }));
-  const s = new Store(dir);
-  assert.equal(s.codes.abc123.credits, 42); assert.equal(s.codes.abc123.used, 8); assert.deepEqual(s.codes.abc123.holds, {});
-  assert.ok(fs.existsSync(path.join(dir, 'vocalbridge.json')));
-});
-
 test('parseWav: menolak header palsu dan menghitung durasi', () => {
   assert.throws(() => parseWav(Buffer.alloc(10)), /audio/);
   const w = makeWav(2.5, 16000); const i = parseWav(w); assert.equal(i.rate, 16000); assert.ok(Math.abs(i.seconds - 2.5) < 0.01);
   const stereo = Buffer.from(makeWav(1)); stereo.writeUInt16LE(5, 22); assert.throws(() => parseWav(stereo), /kanal/);
+});
+
+test('penyedia MENOLAK (400/401/429): dikembalikan penuh, kunci boleh dicoba lagi, tepat satu panggilan', async () => {
+  for (const status of [400, 401, 429]) {
+    const a = await boot(); const code = await a.mkCode(10); a.mock.fail.stt = status;
+    const k = 'kunci-tolak-' + status;
+    const r = await a.stt(code, { key: k }); assert.equal(r.status, status === 429 ? 503 : 502, 'status ' + status);
+    assert.equal(a.mock.calls.stt, 1, 'tanpa fallback atau percobaan ulang');
+    assert.equal(await a.credits(code), 10); assert.equal((await a.me(code)).held, 0);
+    a.mock.fail.stt = null;
+    const r2 = await a.stt(code, { key: k }); assert.equal(r2.status, 200); assert.equal(await a.credits(code), 8);
+  }
+});
+
+test('TANPA fallback: satu permintaan = satu panggilan ke penyedia, bahkan saat ditolak berkali-kali', async () => {
+  const a = await boot(); const code = await a.mkCode(30); a.mock.fail.stt = 400; a.mock.fail.translate = 400; a.mock.fail.tts = 400;
+  await a.stt(code); await a.translate(code); await a.tts(code);
+  assert.deepEqual(a.mock.calls, { stt: 1, translate: 1, tts: 1 });
+  assert.equal(await a.credits(code), 30);
+});
+
+test('batas anggaran bulanan: layanan berhenti, pengembalian memulihkan anggaran', async () => {
+  const a = await boot({ MONTHLY_BUDGET_USD: '0.001', USD_TRANSLATE_PER_CALL: '0.0004' }); const code = await a.mkCode(50);
+  assert.equal((await a.translate(code)).status, 200); assert.equal((await a.translate(code)).status, 200);
+  const r = await a.translate(code); assert.equal(r.status, 503); assert.equal((await r.json()).code, 'budget_exceeded');
+  assert.equal(a.mock.calls.translate, 2);
+  const u = await (await a.adminCall('/admin/usage')).json(); assert.ok(u.estimate.spentUsd <= 0.001); assert.match(u.estimate.basis, /perkiraan/);
+});
+
+test('anggaran dikembalikan saat penyedia menolak (pasti tidak ditagih)', async () => {
+  const a = await boot({ MONTHLY_BUDGET_USD: '0.001', USD_TRANSLATE_PER_CALL: '0.0004' }); const code = await a.mkCode(50);
+  a.mock.fail.translate = 429; for (let i = 0; i < 4; i++) assert.equal((await a.translate(code)).status, 503);
+  a.mock.fail.translate = null; assert.equal((await a.translate(code)).status, 200);
+});
+
+test('kode akses kedaluwarsa dapat dibuat lewat expires_days', async () => {
+  const a = await boot(); await a.mkCode(5, { expires_days: 7 });
+  const list = await (await a.adminCall('/admin/codes')).json();
+  assert.ok(Date.parse(list[list.length - 1].expires) > Date.now() + 6 * 86400000);
 });

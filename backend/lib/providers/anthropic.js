@@ -1,7 +1,8 @@
 'use strict';
-// Provider Anthropic (terjemahan). NONAKTIF di V1: baru hidup bila ENABLE_ANTHROPIC=true dan kunci diisi.
+// Provider Anthropic (terjemahan). NONAKTIF di V1: baru hidup bila ENABLE_ANTHROPIC=true dan kunci diisi. Satu permintaan, tanpa percobaan ulang.
 const { HttpError } = require('../util');
-const { interpreterPrompt, mapError, readErrMessage } = require('./openai');
+const { interpreterPrompt } = require('./openai');
+const { errMessage, httpError, readBody, send } = require('./common');
 
 class AnthropicTranslation {
   constructor(cfg) { this.cfg = cfg; this.id = 'anthropic'; }
@@ -9,15 +10,13 @@ class AnthropicTranslation {
   reason() { return this.cfg.enableAnthropic ? 'ANTHROPIC_API_KEY belum diisi di server' : 'provider Anthropic dinonaktifkan di V1'; }
   async translate({ text, src, tgt, context }) {
     const a = this.cfg.anthropic;
-    let r;
-    try {
-      r = await fetch(a.base + '/v1/messages', { method: 'POST', signal: AbortSignal.timeout(this.cfg.upstreamTimeoutMs),
-        headers: { 'content-type': 'application/json', 'x-api-key': a.key, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({ model: a.model, max_tokens: 400, system: interpreterPrompt(src, tgt, context), messages: [{ role: 'user', content: text }] }) });
-    } catch (e) { throw new HttpError(e && e.name === 'TimeoutError' ? 504 : 502, 'terjemahan tidak terjangkau', 'provider_unreachable'); }
-    if (!r.ok) throw mapError(r.status, await readErrMessage(r), 'terjemahan');
-    const j = await r.json();
-    return { text: String(j.content[0].text).trim(), engine: 'Claude ' + a.model };
+    const r = await send(a.base + '/v1/messages', { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': a.key, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: a.model, max_tokens: 400, system: interpreterPrompt(src, tgt, context), messages: [{ role: 'user', content: text }] }) }, 'terjemahan', this.cfg.upstreamTimeoutMs);
+    if (!r.ok) throw httpError(r.status, await errMessage(r), 'terjemahan', this.cfg);
+    const j = await readBody(r, 'terjemahan', 'json');
+    const out = j && j.content && j.content[0] && j.content[0].text;
+    if (typeof out !== 'string') throw new HttpError(502, 'terjemahan: balasan tidak sesuai', 'provider_bad_response', 'unknown');
+    return { text: out.trim(), engine: 'Claude ' + a.model, usage: { kind: 'translate' } };
   }
 }
 module.exports = { AnthropicTranslation };

@@ -3,6 +3,8 @@
 // Bukan tes nyata: tidak ada suara manusia, kunci OpenAI, HP, atau Meet/Zoom sungguhan.
 const { chromium, devices } = require('playwright');
 const { startAll } = require('./servers');
+const { spawnBackend } = require('../../backend/test/helpers');
+const net = require('net');
 
 const results = [];
 const openContexts = [];
@@ -264,6 +266,53 @@ test('Mode Gratis (tanpa backend): satu tombol, lawan otomatis, giliran Saya (Sp
   check('Gratis: tidak memanggil backend sama sekali', S.mock.calls.stt + S.mock.calls.translate + S.mock.calls.tts === calls0 && !p.reqs.some(r => /\/api\//.test(r.url)));
   check('Gratis: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
   await p.click('#vbStop'); check('Gratis: Hentikan mengembalikan ke idle', (await state(p)) === 'idle');
+});
+
+test('Suara Saya (klon suara): modul dipertahankan sebagai fitur Pro NONAKTIF, rekam sampel lokal tanpa jaringan', async (b, S) => {
+  const p = await newPage(b, S); await connect(p, S);
+  await p.click('#btnSettings'); await p.click('summary:has-text("Suara Saya")'); await p.click('#btnOpenVoice');
+  check('Suara Saya: tampilan ada dan tombol kembali tersedia', await p.evaluate(() => document.getElementById('view-voice').classList.contains('on') && !!document.getElementById('btnBackTalk2')));
+  check('Suara Saya: ditandai fitur Pro nonaktif', /Pro nonaktif|nonaktif/.test(await txt(p, '#voiceGate')) && /Pro · nonaktif/.test(await txt(p, '#view-voice')), await txt(p, '#voiceGate'));
+  check('Suara Saya: tombol klon dan suara klon nonaktif, pakai-klon nonaktif', await p.evaluate(() => ['cloneBtn', 'btnPlayClone', 'useEL'].every(id => document.getElementById(id).disabled)));
+  check('Suara Saya: server menyatakan fitur nonaktif lewat /api/me', (await p.evaluate(() => window.__t.VB.me.features.voice_clone.enabled)) === false);
+  await p.check('#consent'); await p.evaluate(() => window.__t.renderVoiceGate());
+  check('Suara Saya: persetujuan saja tidak mengaktifkan klon', await p.evaluate(() => document.getElementById('cloneBtn').disabled));
+  const n0 = p.reqs.length;
+  await p.click('#btnRecSample'); await sleep(4200); await p.click('#btnRecSample'); // aplikasi menolak rekaman < 3 dtk
+  await p.waitForFunction(() => document.getElementById('samplePrev').style.display === 'block', null, { timeout: 8000 });
+  check('Suara Saya: rekaman sampel lokal berhasil dan dapat didengar ulang', /Terekam|File|dtk/.test(await txt(p, '#recInfo')) || (await p.evaluate(() => !!document.getElementById('samplePrev').src)), await txt(p, '#recInfo'));
+  check('Suara Saya: merekam sampel tidak mengirim apa pun ke jaringan', p.reqs.slice(n0).filter(r => !/^data:|^blob:/.test(r.url)).length === 0, JSON.stringify(p.reqs.slice(n0).map(r => r.url)));
+  await p.click('#cloneBtn', { force: true }).catch(() => {});
+  check('Suara Saya: mengeklik klon tidak memanggil /api/clone atau ElevenLabs', !p.reqs.some(r => /\/api\/clone|elevenlabs/i.test(r.url)));
+  const gate = await p.evaluate(() => { window.__t.VB.me.features = { voice_clone: { enabled: true, reason: '' } }; window.__t.renderVoiceGate(); return document.getElementById('cloneBtn').disabled; });
+  check('Suara Saya: gerbang mengikuti pernyataan server (aktif + sampel + persetujuan = tombol terbuka)', gate === false);
+  check('Suara Saya: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
+test('Restart backend sungguhan saat permintaan berjalan (browser): kredit ditahan, tidak ditagih ganda, sesi pulih', async (b, S) => {
+  const port = await new Promise(r => { const sv = net.createServer(); sv.listen(0, '127.0.0.1', () => { const q = sv.address().port; sv.close(() => r(q)); }); });
+  const dir = require('fs').mkdtempSync(require('path').join(require('os').tmpdir(), 'vb-e2e-restart-'));
+  const env = { PORT: String(port), OPENAI_BASE: S.mock.base, ALLOWED_ORIGINS: S.origin, OPENAI_TTS_FORMAT: 'wav' };
+  let be = await spawnBackend(env, dir);
+  const code = (await be.adm('/admin/codes', { name: 'Restart', credits: 100 })).json.code;
+  const stt0 = S.mock.calls.stt, done0 = S.mock.completed.stt;
+  S.mock.sttDelay = 3000;
+  const p = await newPage(b, S); await connect(p, { B: be.B, code }, code); await startSession(p);
+  const t0 = Date.now(); while (S.mock.calls.stt === stt0 && Date.now() - t0 < 25000) await sleep(50);
+  check('Restart: permintaan STT pertama sampai ke penyedia', S.mock.calls.stt === stt0 + 1);
+  await be.kill(); S.mock.sttDelay = 0;                                                         // backend mati saat penyedia sedang memproses
+  await sleep(300); be = await spawnBackend(env, dir);
+  check('Restart: backend baru melaporkan pemulihan 1 transaksi UNKNOWN', /"recovered":\{"failed":0,"unknown":1\}/.test(be.out()), be.out().slice(0, 200));
+  const unk = (await be.adm('/admin/transactions?state=UNKNOWN')).json;
+  check('Restart: transaksi UNKNOWN tercatat dan kredit ditahan (tidak dikembalikan otomatis)', unk.length === 1 && (await be.me(code)).credits === 98, JSON.stringify(unk.map(t => t.state)) + ' ' + (await be.me(code)).credits);
+  check('Restart: ID transaksi = X-Client-Request-Id yang diterima penyedia', S.mock.seen[S.mock.seen.length - 1].headers['x-client-request-id'] === unk[0].txn);
+  await waitCard(p, 'them', 40000);
+  check('Restart: sesi pulih dan ucapan berikutnya berhasil diproses', (await txt(p, 'article.vb-turn.them [data-k="orig"]')) === 'Could you explain the proposal?');
+  const me = await be.me(code);
+  check('Restart: kredit terpakai = pekerjaan yang ditagih penyedia (1 hilang ditahan + 1 sukses)', me.credits === 95 && me.held === 2 && S.mock.completed.stt - done0 === 2, JSON.stringify(me) + ' completed=' + (S.mock.completed.stt - done0));
+  const res = await be.adm('/admin/transactions/resolve', { txn: unk[0].txn, resolution: 'confirm', note: 'tercatat di log penyedia', request_id: 'req-e2e-restart-1' });
+  check('Restart: admin merekonsiliasi (confirm) dan saldo konsisten', res.json.state === 'CONFIRMED' && (await be.me(code)).held === 0 && (await be.adm('/admin/audit')).json.issues.length === 0);
+  await p.click('#vbStop'); await be.kill();
 });
 
 test('QA Lab: terpisah dari tampilan utama dan tetap berfungsi', async (b, S) => {

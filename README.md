@@ -3,7 +3,7 @@
 Asisten penerjemah meeting pribadi Indonesia ⇄ Inggris untuk browser HP dan desktop.
 Lawan bicara tidak perlu memasang apa pun dan tidak perlu menekan tombol.
 
-**Status: V1 siap diuji, BELUM siap produksi.** Uji end-to-end dengan OpenAI sungguhan, HP sungguhan, dan Meet/Zoom sungguhan belum dilakukan. Lihat [docs/HASIL-UJI.md](docs/HASIL-UJI.md).
+**Status: V1.1 siap diuji (setelah remediasi P0/P1), BELUM siap produksi.** Uji end-to-end dengan OpenAI sungguhan, HP sungguhan, dan Meet/Zoom sungguhan belum dilakukan. Lihat [docs/HASIL-UJI.md](docs/HASIL-UJI.md) dan [docs/REMEDIASI.md](docs/REMEDIASI.md).
 
 ## Cara kerja
 - Satu tombol utama: **Saya Bicara**. Sesudah sesi dimulai, lawan bicara (Inggris) didengarkan otomatis.
@@ -16,7 +16,7 @@ Lawan bicara tidak perlu memasang apa pun dan tidak perlu menekan tombol.
 |---|---|
 | `index.html` | Frontend statis untuk GitHub Pages. Tidak memegang kunci API apa pun. QA Lab ada di menu Pengaturan. |
 | `backend/` | Backend Node.js tanpa dependensi: autentikasi kode akses, kredit, batas biaya, provider OpenAI. Kunci hanya dibaca dari environment variables. |
-| `tests/` | Pemindai keamanan, regresi QA Lab, dan tes browser (simulasi). |
+| `tests/` | Pemindai keamanan, regresi QA Lab, tes browser (simulasi), dan skrip reproduksi masalah. |
 | `docs/` | Panduan backend, prosedur uji nyata, hasil uji, laporan. |
 
 ## Aturan kunci API
@@ -34,6 +34,11 @@ npm run test:e2e         # tes browser (simulasi)
 
 ## Mengaktifkan backend
 Ikuti [docs/BACKEND.md](docs/BACKEND.md). Alamat backend diisi di `index.html` pada `VB_CONFIG.API_BASE` atau langsung di Pengaturan aplikasi. Alamat itu publik, bukan rahasia.
+
+## Biaya dan kredit (ringkas)
+- Setiap permintaan berbayar adalah transaksi bersatus PENDING / CONFIRMED / FAILED / UNKNOWN. Status yang belum pasti **tidak** dikembalikan otomatis dan direkonsiliasi admin (`docs/BACKEND.md` bagian 4 dan 5).
+- Batas biaya internal hanyalah perkiraan; pasang juga batas belanja di dashboard OpenAI.
+- Suara Saya (klon suara) ada sebagai fitur Pro nonaktif.
 
 ## Batas yang jujur
 - Mikrofon lokal: tersedia. Audio tab browser: hanya Chrome desktop dan belum diuji dengan Meet/Zoom nyata. Mengirim suara terjemahan ke meeting: belum ada.

@@ -336,6 +336,52 @@
     </div>
   </section>
 
+  <!-- ===================== SUARA SAYA (FITUR PRO, NONAKTIF) ===================== -->
+  <section class="view" id="view-voice">
+    <div class="backbar"><button class="sm" id="btnBackTalk2">← Percakapan</button><b>Suara Saya</b><span class="vb-pro free">Pro · nonaktif</span></div>
+    <div class="scroll">
+      <div class="verdict warn" id="voiceGate">Fitur Pro nonaktif sampai backend dan persetujuan siap.</div>
+      <p class="note">Modul klon suara dipertahankan, tetapi pembuatan klon dan suara klon baru aktif setelah backend menyediakannya dan persetujuan siap. Tidak ada kunci ElevenLabs di browser. Merekam sampel di bawah hanya menyimpan suara di perangkat ini.</p>
+      <div class="card">
+        <h3>2. Rekam sampel suara kamu</h3>
+        <p class="note">Baca naskah di bawah dengan suara natural dan ekspresif (jangan berbisik atau berteriak). Rekaman 60–120 detik, tanpa musik. Disimpan lossless (WAV) supaya jernih.</p>
+        <div class="readtext" id="readText"></div>
+        <label>Kualitas rekaman</label>
+        <select id="sampleProfile">
+          <option value="raw">Mentah, tanpa pemrosesan (disarankan di ruangan sunyi)</option>
+          <option value="clean">Dengan peredam bising (untuk ruangan kurang sunyi)</option>
+        </select>
+        <button class="pri big" id="btnRecSample" style="margin-top:8px">⏺ Mulai rekam</button>
+        <div class="meter" style="margin-top:8px"><i id="meterRec"></i></div>
+        <div class="note" id="recInfo">Belum ada rekaman.</div>
+        <audio id="samplePrev" controls style="display:none;width:100%;margin-top:8px"></audio>
+        <div id="recVerdict"></div>
+        <label>Atau pilih file rekaman yang sudah ada</label>
+        <input type="file" id="sampleFile" accept="audio/*">
+      </div>
+      <div class="card">
+        <h3>3. Buat klon suara <span class="chip">Pro · nonaktif</span></h3>
+        <label class="chk"><input type="checkbox" id="consent"> Ini suara saya sendiri dan saya setuju dikloning</label>
+        <label for="cloneName">Nama klon</label>
+        <input id="cloneName" type="text" value="Suara Saya">
+        <button class="pri big" id="cloneBtn" style="margin-top:8px" disabled>✨ Buat klon dari rekaman</button>
+        <div class="note" id="cloneStatus"></div>
+        <label for="voiceId">Voice ID (terisi otomatis bila klon pernah dibuat)</label>
+        <input id="voiceId" type="text" placeholder="belum ada klon" autocomplete="off" readonly>
+      </div>
+      <div class="card">
+        <h3>4. Dengarkan hasilnya <span class="chip">Pro · nonaktif</span></h3>
+        <label for="voiceTestText">Kalimat Inggris untuk dicoba</label>
+        <textarea id="voiceTestText" rows="2">Hello, this is my own voice speaking English. Nice to meet you.</textarea>
+        <div class="row" style="margin-top:8px">
+          <button class="sm" id="btnPlayClone" disabled>▶ Suara klon</button>
+          <button class="sm" id="btnPlayOrig">▶ Suara asli (rekaman saya)</button>
+        </div>
+        <label class="chk" style="margin-top:10px"><input type="checkbox" id="useEL" disabled> Pakai suara klon saat menerjemahkan (arah Saya → Inggris)</label>
+        <div class="note" id="voiceStatus"></div>
+      </div>
+    </div>
+  </section>
 </div>
 
 <div id="toast"></div>
@@ -424,6 +470,14 @@
           </div>
         </details>
         <div class="sheetbtns"><button class="sm" id="btnReviewConsent">Tinjau persetujuan</button></div>
+      </div>
+    </details>
+
+    <details>
+      <summary>Suara Saya (fitur Pro, nonaktif)</summary>
+      <div>
+        <p class="note">Klon suara dipertahankan sebagai fitur Pro yang nonaktif sampai backend dan persetujuan siap. Rekaman sampel di perangkat tetap bisa dicoba.</p>
+        <div class="sheetbtns"><button class="sm" id="btnOpenVoice">Buka Suara Saya</button></div>
       </div>
     </details>
 
@@ -757,11 +811,24 @@
     ready(){ return !!(this.base() && this.token()); }
   };
   function uuid(){ try{ if(crypto && crypto.randomUUID) return crypto.randomUUID(); }catch(_){} return 'k' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12); }
+  // Pesan untuk kode galat backend (mesin status transaksi). Pesan server sudah berbahasa Indonesia; ini memastikan teks yang konsisten dan tindakan yang jelas.
+  const VB_MSG = {
+    txn_unknown: 'Status pemrosesan belum pasti. Kredit ditahan sampai administrator memeriksa. Jangan ulangi permintaan yang sama.',
+    provider_unknown: 'Status pemrosesan belum pasti: layanan AI mungkin sudah memproses. Kredit ditahan sampai administrator memeriksa.',
+    idem_conflict: 'Hasil permintaan sebelumnya hilang (server dimulai ulang). Ulangi ucapan; kredit dihitung lagi.',
+    txn_pending: 'Permintaan sebelumnya masih diproses. Tunggu sebentar.',
+    budget_exceeded: 'Batas anggaran layanan tercapai. Hubungi administrator.',
+    daily_limit: 'Batas pemakaian harian tercapai.',
+    paid_disabled: 'Layanan berbayar sedang dinonaktifkan oleh administrator.',
+    store_unavailable: 'Server sedang bermasalah. Coba lagi nanti.',
+    feature_disabled: 'Fitur ini nonaktif sampai backend dan persetujuan siap.'
+  };
   function vbError(status, j){
     const e = new Error((j && j.error) || ('Server menjawab ' + status));
-    e.vb = true; e.status = status; e.code = (j && j.code) || null;
+    e.vb = true; e.status = status; e.code = (j && j.code) || null; e.txn = (j && j.txn) || null;
     if(status === 401) e.message = 'Kode akses salah atau sudah kedaluwarsa.';
     else if(status === 402) e.message = 'Kredit habis. Minta administrator mengisi ulang.';
+    else if(e.code && VB_MSG[e.code]) e.message = VB_MSG[e.code];
     return e;
   }
   // Satu pintu semua panggilan. Permintaan berbayar membawa Idempotency-Key; bila jaringan putus atau
@@ -1798,6 +1865,7 @@
   };
 
   // ================= tes mikrofon =================
+  $('readText').textContent = 'Selamat pagi semuanya! Hari ini saya ingin bercerita tentang pekerjaan saya sebagai editor video. Setiap proyek dimulai dengan mendengarkan kebutuhan klien: apa pesan yang ingin disampaikan, siapa penontonnya, dan di mana video akan ditayangkan. Setelah itu saya memilih musik, menyusun potongan gambar, lalu menambahkan teks dan warna supaya hasilnya enak ditonton. Kadang prosesnya cepat, kadang butuh waktu lebih lama, terutama kalau ada banyak revisi. Menurut saya, komunikasi yang jelas itu kuncinya. Apakah ini sudah sesuai dengan yang Anda bayangkan? Kalau belum, tolong beri tahu saya sekarang, ya! Saya senang sekali bisa bekerja sama dengan orang dari berbagai negara. Setiap hari saya belajar hal baru, mulai dari cara bicara yang sopan, cara menawar harga dengan tenang, sampai cara menjelaskan ide yang rumit dengan kalimat sederhana. Terima kasih sudah mendengarkan, dan sampai jumpa di video berikutnya.';
 
   const Mic = { cap:null, mode:null, frames:[], rate:48000, timer:null };
   async function micStart(mode, profile, meterId, maxSec, onDone){
@@ -1832,19 +1900,81 @@
     });
     if(ok){ $('btnMicTest').textContent = '⏹ Selesai'; $('micHint').textContent = 'Ucapkan: "satu, dua, tiga … sepuluh" dengan suara biasa.'; }
   };
+  let sampleBlob = null, sampleUrl = null;
+  function setSample(blob, label){
+    sampleBlob = blob;
+    if(sampleUrl) URL.revokeObjectURL(sampleUrl);
+    sampleUrl = URL.createObjectURL(blob);
+    const p = $('samplePrev'); p.src = sampleUrl; p.style.display = 'block';
+    $('recInfo').textContent = label;
+  }
+  $('btnRecSample').onclick = async () => {
+    if(Mic.cap && Mic.mode === 'rec'){ micStop(); return; }
+    $('recVerdict').textContent = '';
+    const profile = $('sampleProfile').value;
+    const ok = await micStart('rec', profile, 'meterRec', 150, (frames, rate) => {
+      $('btnRecSample').textContent = '⏺ Rekam ulang';
+      const a = analyzeFrames(frames, rate);
+      if(!a || a.dur < 3){ $('recInfo').textContent = 'Rekaman terlalu pendek.'; renderVerdict($('recVerdict'), a); return; }
+      let x = resample(concatF32(frames), rate, 24000);
+      let pk = 0; for(let i = 0; i < x.length; i++){ const v = Math.abs(x[i]); if(v > pk) pk = v; }
+      const gain = pk > 0 ? Math.min(10, 0.7 / pk) : 1;                 // rapikan level (puncak sekitar -3 dB)
+      if(gain !== 1) for(let i = 0; i < x.length; i++) x[i] *= gain;
+      const wav = new Blob([encodeWav(x, 24000)], { type:'audio/wav' });
+      setSample(wav, 'Terekam ' + a.dur.toFixed(0) + ' dtk, WAV 24 kHz lossless (' + (wav.size / 1e6).toFixed(1) + ' MB)' + (a.dur < 45 ? ' · disarankan minimal 60 dtk' : ''));
+      renderVerdict($('recVerdict'), a);
+    });
+    if(ok){ $('btnRecSample').textContent = '⏹ Selesai merekam'; $('recInfo').textContent = 'Merekam… baca naskah di atas.'; }
+  };
+  $('sampleFile').onchange = e => { const f = e.target.files[0]; if(f){ setSample(f, 'File: ' + f.name + ' (' + (f.size / 1e6).toFixed(1) + ' MB)'); } };
+  // ================= klon suara: FITUR PRO NONAKTIF =================
+  // Modul dipertahankan (rekam sampel lokal, pratinjau, persetujuan). Klon hanya dapat berjalan bila SERVER menyatakan fitur aktif
+  // (/api/me -> features.voice_clone.enabled). Saat ini server selalu menyatakan nonaktif dan /api/clone membalas 503.
+  // Tidak ada kunci ElevenLabs di browser dan tidak ada panggilan jaringan dari modul ini selama fitur nonaktif.
+  const FEATURES = {
+    voiceClone(){ const f = VB.me && VB.me.features && VB.me.features.voice_clone; return { on: !!(f && f.enabled), reason: (f && f.reason) || 'Fitur Pro nonaktif sampai backend dan persetujuan siap.' }; }
+  };
+  function renderVoiceGate(){
+    const g = FEATURES.voiceClone(), ready = g.on && VB.ready() && !!sampleBlob && $('consent').checked;
+    $('voiceGate').textContent = g.on ? 'Fitur Pro aktif di server.' : g.reason;
+    $('cloneBtn').disabled = !ready; $('btnPlayClone').disabled = !g.on; $('useEL').disabled = true;
+    $('cloneStatus').textContent = g.on ? (sampleBlob ? ($('consent').checked ? 'Siap membuat klon.' : 'Centang persetujuan dulu.') : 'Rekam atau pilih sampel dulu.') : 'Klon suara dinonaktifkan. Rekaman sampel di bawah hanya tersimpan di perangkat ini.';
+  }
+  $('cloneBtn').onclick = async () => {
+    const st = $('cloneStatus'), g = FEATURES.voiceClone();
+    if(!g.on){ st.textContent = g.reason; return; }
+    if(!VB.ready()){ st.textContent = 'Isi kode akses di Pengaturan dulu.'; return; }
+    if(!sampleBlob){ st.textContent = 'Rekam atau pilih sampel suara dulu.'; return; }
+    if(!$('consent').checked){ st.textContent = 'Centang persetujuan bahwa ini suara kamu sendiri.'; return; }
+    st.textContent = 'Membuat klon…'; $('cloneBtn').disabled = true;
+    try{
+      const fd = new FormData(); fd.append('name', $('cloneName').value.trim() || 'Suara Saya'); fd.append('files', sampleBlob, sampleBlob.name || 'suara.wav'); fd.append('consent', 'true');
+      const r = await vbCall('/api/clone', { body: fd }); const j = await r.json(); noteCredits(r);
+      $('voiceId').value = j.voice_id; lsSet('tr_voice', j.voice_id); st.textContent = 'Klon dibuat.';
+    }catch(e){ st.textContent = 'Gagal membuat klon: ' + e.message; }
+    renderVoiceGate();
+  };
+  $('btnPlayClone').onclick = () => { $('voiceStatus').textContent = 'Suara klon belum tersedia di backend.'; };
+  $('btnPlayOrig').onclick = () => {
+    if(!sampleUrl){ $('voiceStatus').textContent = 'Belum ada rekaman sampel.'; return; }
+    unlockAudio(); player.src = sampleUrl; player.playbackRate = 1; const p = player.play(); if(p && p.catch) p.catch(() => {});
+  };
+
   // ================= pengaturan, tampilan, tombol umum =================
   function showView(v){
     if(Conv.on) endSession();
     if(Listen.active) stopListening();
-    $('view-talk').classList.toggle('on', v === 'talk');
-    $('view-test').classList.toggle('on', v === 'test');
+    ['talk', 'test', 'voice'].forEach(x => $('view-' + x).classList.toggle('on', x === v));
     if(v === 'test'){ renderScript(); renderSummary(); renderTestList(); }
+    if(v === 'voice') renderVoiceGate();
   }
   $('btnSettings').onclick = openSheet;
   $('btnClose').onclick = closeSheet;
   $('sheet').addEventListener('click', e => { if(e.target === $('sheet')) closeSheet(); });
   $('btnOpenLab').onclick = () => { closeSheet(); showView('test'); };
   $('btnBackTalk').onclick = () => showView('talk');
+  $('btnBackTalk2').onclick = () => showView('talk');
+  $('btnOpenVoice').onclick = () => { closeSheet(); showView('voice'); };
   $('vbMic').onclick = onMainButton;
   $('vbStart').onclick = startSession;
   $('vbStop').onclick = () => endSession('Sesi dihentikan.');
@@ -1852,7 +1982,7 @@
   // akses backend
   const vbInfo = t => { $('vbConnInfo').textContent = t; };
   function vbDescribe(me){
-    return 'Terhubung. Sisa kredit: ' + me.credits + '. Layanan berbayar: ' + (me.paid_enabled ? 'aktif' : 'dinonaktifkan administrator') +
+    return 'Terhubung. Sisa kredit: ' + me.credits + (me.held ? ' (ditahan ' + me.held + ', menunggu pemeriksaan administrator)' : '') + '. Layanan berbayar: ' + (me.paid_enabled ? 'aktif' : 'dinonaktifkan administrator') +
       '. Pengenal suara: ' + me.providers.stt.provider + ', terjemahan: ' + me.providers.translate.provider + ', suara: ' + me.providers.tts.provider + '.';
   }
   $('vbApi').value = lsGet('vb_api') || (window.VB_CONFIG && window.VB_CONFIG.API_BASE) || '';
@@ -1902,18 +2032,20 @@
   bind('testerName', 'tr_tester', '', renderSummary);
   bind('sessionName', 'tr_session', defaultSessionName(), () => { renderSummary(); renderTestList(); });
   bind('testSpeak', 'tr_testspeak', false);
+  bind('voiceId', 'tr_voice', '');
+  $('consent').addEventListener('change', renderVoiceGate); $('sampleFile').addEventListener('change', () => setTimeout(renderVoiceGate, 0));
   bind('exportScope', 'tr_scope', 'session');
 
   // mulai
   if(purgeLegacyKeys()) toast('Kunci API lama dihapus dari perangkat ini. Kunci kini hanya ada di server.');
-  renderPlan(); histInfo(); renderScript(); renderSummary(); setState('idle'); watchPermission();
+  renderPlan(); histInfo(); renderScript(); renderSummary(); renderVoiceGate(); setState('idle'); watchPermission();
   if(VB.ready()) vbRefresh().then(me => vbInfo(vbDescribe(me))).catch(e => vbInfo('Gagal terhubung: ' + e.message));
   document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && (Listen.active || Conv.on)) keepAwake(true); });
   if('speechSynthesis' in window) speechSynthesis.onvoiceschanged = () => {};
 
   if(window.__TEST__) window.__t = { DIALOGS, hist: () => history, sub, subShow, subSet, subByChar, subDone, speak, handle, ttsFlags, Listen, startListening, stopListening, LOG: () => LOG,
     normText, wer, accuracy, tokenF1, diffHtml, parseDialog, analyzeFrames, verdictFor, encodeWav, resample, buildCsv, buildText, buildTranscript, scopeLogs, SCRIPTS, Script, scriptItems, showView,
-    Conv, VB, VAD, StreamTap, CONV, CARDS, newCard, setState, startSession, endSession, onMainButton, vbCall, translate, sttBackend, ttsBackend, purgeLegacyKeys, transcriptText, sessObj, histRead, clearSession, onThem, onMeSpeech, completeTurn };
+    Conv, VB, VAD, StreamTap, renderVoiceGate, FEATURES, CONV, CARDS, newCard, setState, startSession, endSession, onMainButton, vbCall, translate, sttBackend, ttsBackend, purgeLegacyKeys, transcriptText, sessObj, histRead, clearSession, onThem, onMeSpeech, completeTurn };
 })();
 </script>
 </body>

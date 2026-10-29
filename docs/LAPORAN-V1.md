@@ -1,5 +1,7 @@
 # Laporan VocalBridge V1 (29 Oktober 2026)
 
+> **Diperbarui:** setelah pemeriksaan ulang, masalah P0/P1 diperbaiki. Lihat `REMEDIASI.md` (per masalah) dan `BACKEND.md` (panduan terbaru). Angka tes terbaru: backend 88, statis 23, regresi 20, E2E 99. Bagian di bawah adalah laporan V1 asli; butir yang berubah ditandai.
+
 **Status: V1 siap diuji, bukan siap produksi.** Semua pekerjaan ada di branch lokal `v1-secure-backend`. Tidak ada deploy, merge, penggantian kunci, panggilan API berbayar, billing, atau repositori baru. Akses tulis ke GitHub ditolak oleh sistem izin, jadi hasil diserahkan sebagai berkas.
 
 ## 1. Pekerjaan yang benar-benar dilakukan
@@ -32,7 +34,7 @@ Baru: `backend/server.js`, `backend/lib/{config,store,util}.js`, `backend/lib/pr
 3. Audio tab dan routing ke meeting: audio tab belum diuji dengan Meet/Zoom nyata; mengirim suara terjemahan ke meeting belum dibangun (butuh kabel audio virtual).
 4. Ucapan lawan selama Saya Bicara dibuang (sesuai instruksi "jeda"). Alternatif merekam lalu memproses menunggu keputusan Anda.
 5. Penyimpanan kredit berkas JSON: cukup untuk beberapa tester, satu instance saja. Cache idempotensi di memori; setelah restart, kunci yang sama dijawab 409 (tidak ada potong ganda).
-6. Fitur **Suara Saya / klon suara ElevenLabs dihapus dari UI** (kunci di browser dilarang dan ElevenLabs dinonaktifkan). Kodenya ada di riwayat git. Mohon konfirmasi penghapusan.
+6. ~~Suara Saya dihapus dari UI~~ **Diperbaiki:** modul dipulihkan sebagai fitur Pro nonaktif (lihat REMEDIASI.md, P2).
 7. Sisa kode lama tak terpakai di `index.html` (cabang `ui==='talk'` di `handle()`, `subShow`) merujuk elemen yang sudah tidak ada. Tidak terjangkau, belum dibersihkan.
 8. Pengenal suara Chrome (mode Gratis) mengirim audio ke Google; sudah diungkap di persetujuan.
 9. Kunci yang pernah ditempel di browser lama dihapus aplikasi saat dibuka, tetapi **tetap putar kunci itu** di dashboard penyedia. Saya tidak melakukannya.

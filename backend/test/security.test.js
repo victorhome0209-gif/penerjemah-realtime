@@ -10,7 +10,7 @@ const { warnings } = require('../server');
 
 const apps = [];
 const boot = async (env, seed) => { const a = await startApp(env, seed); apps.push(a); return a; };
-after(async () => { for (const a of apps) await a.close(); });
+after(async () => { for (const a of apps) { assert.deepEqual(a.mock.violations, [], 'permintaan ke OpenAI melanggar kontrak'); await a.close(); } });
 
 test('health publik, tanpa kunci dan tanpa detail provider', async () => {
   const a = await boot();
@@ -104,9 +104,8 @@ test('kode kedaluwarsa dan kode dinonaktifkan ditolak', async () => {
   const a = await boot(); const code = await a.mkCode(10);
   const id = a.store.hash(code); a.store.codes[id].expires = new Date(Date.now() - 1000).toISOString();
   assert.equal((await a.call(code, '/api/me', { method: 'GET' })).status, 401);
-  const c2 = await a.mkCode(10); const list = await (await a.adminCall('/admin/codes')).json();
-  const mine = list.find(x => x.credits === 10 && !x.expires);
-  await a.adminCall('/admin/topup', { id: mine.id, credits: 0, disabled: true });
+  const c2 = await a.mkCode(10);
+  const r = await a.adm('/admin/disable', { id: a.shortId(c2), disabled: true, request_id: a.rid() }); assert.equal(r.status, 200);
   assert.equal((await a.call(c2, '/api/me', { method: 'GET' })).status, 401);
 });
 
@@ -155,5 +154,6 @@ test('kunci OpenAI hanya dikirim server ke OpenAI, tidak pernah ke klien', async
 test('peringatan konfigurasi berbahaya muncul saat start', () => {
   const w = warnings(loadConfig({ PAID_API_ENABLED: 'true', ALLOW_ANY_ORIGIN: 'true' }));
   assert.ok(w.some(x => /ADMIN_TOKEN/.test(x))); assert.ok(w.some(x => /ALLOW_ANY_ORIGIN/.test(x))); assert.ok(w.some(x => /OPENAI_API_KEY/.test(x)));
-  assert.deepEqual(warnings(loadConfig({ ADMIN_TOKEN: 'x'.repeat(30), ALLOWED_ORIGINS: ORIGIN })), []);
+  const ok = warnings(loadConfig({ ADMIN_TOKEN: 'x'.repeat(30), ALLOWED_ORIGINS: ORIGIN }));
+  assert.ok(ok.every(x => /deprecated/.test(x)), ok.join(' | ')); // satu-satunya peringatan: model TTS yang deprecated
 });
