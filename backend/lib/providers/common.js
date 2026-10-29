@@ -14,12 +14,20 @@ function fetchError(e, who) {
   if (code && NOT_SENT.has(code)) return new HttpError(502, who + ' tidak terjangkau', 'provider_unreachable', 'not_sent');
   return new HttpError(502, who + ': koneksi terputus', 'provider_connection_lost', 'unknown');
 }
-async function errMessage(r) {
-  try { const j = await r.json(); return redact((j.error && (j.error.message || j.error)) || j.message || ''); } catch (_) { return ''; }
+async function errMessage(r) { return (await errInfo(r)).message; }
+// Badan galat penyedia: pesan (disamarkan) dan kode/jenis galat bila ada (mis. project_spend_limit_exceeded).
+async function errInfo(r) {
+  try {
+    const j = await r.json(), e = j && j.error;
+    return { message: redact((e && (e.message || e)) || (j && j.message) || ''), code: String((e && e.code) || ''), type: String((e && e.type) || '') };
+  } catch (_) { return { message: '', code: '', type: '' }; }
 }
-function httpError(status, msg, who, cfg) {
+// 429 karena BATAS BIAYA/KUOTA (bukan sekadar sibuk): mencoba lagi tidak membantu sampai pemilik akun mengubah batas atau saldo.
+const QUOTA_CODES = new Set(['project_spend_limit_exceeded', 'organization_spend_limit_exceeded', 'organization_usage_limit_exceeded', 'credit_balance_exhausted', 'insufficient_quota']);
+function httpError(status, msg, who, cfg, info) {
   const m = String(msg || '').slice(0, 160);
   const outcome = status >= 500 && !(cfg && cfg.refundOnProvider5xx) ? 'unknown' : 'rejected';
+  if (status === 429 && info && (QUOTA_CODES.has(info.code) || QUOTA_CODES.has(info.type))) return new HttpError(503, who + ': batas biaya atau kuota OpenAI tercapai, hubungi administrator', 'provider_quota', outcome);
   if (status === 401 || status === 403) return new HttpError(502, who + ': konfigurasi penyedia bermasalah (periksa kunci di server)', 'provider_auth', outcome);
   if (status === 429) return new HttpError(503, who + ' sedang sibuk, coba lagi sebentar', 'provider_busy', outcome);
   if (status === 400 || status === 404 || status === 422) return new HttpError(502, who + ': penyedia menolak permintaan' + (m ? ' (' + m + ')' : ''), 'provider_bad_request', outcome);
@@ -35,4 +43,4 @@ async function send(url, init, who, timeoutMs) {
   try { return await fetch(url, Object.assign({ signal: AbortSignal.timeout(timeoutMs) }, init)); }
   catch (e) { throw fetchError(e, who); }
 }
-module.exports = { fetchError, errMessage, httpError, readBody, send };
+module.exports = { fetchError, errMessage, errInfo, QUOTA_CODES, httpError, readBody, send };

@@ -37,7 +37,7 @@ Ikuti [docs/BACKEND.md](docs/BACKEND.md). Alamat backend diisi di `index.html` p
 
 ## Biaya dan kredit (ringkas)
 - Setiap permintaan berbayar adalah transaksi bersatus PENDING / CONFIRMED / FAILED / UNKNOWN. Status yang belum pasti **tidak** dikembalikan otomatis dan direkonsiliasi admin (`docs/BACKEND.md` bagian 4 dan 5).
-- Batas biaya internal hanyalah perkiraan; pasang juga batas belanja di dashboard OpenAI.
+- Batas biaya internal hanyalah perkiraan; pasang juga hard spend limit di project OpenAI (spend alert hanya notifikasi, bukan batas).
 - Suara Saya (klon suara) ada sebagai fitur Pro nonaktif.
 
 ## Batas yang jujur

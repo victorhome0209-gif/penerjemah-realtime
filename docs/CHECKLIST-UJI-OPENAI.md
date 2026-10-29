@@ -4,7 +4,10 @@
 Biaya acuan: satu giliran kalimat pendek = 4 kredit (STT 2 + terjemahan 1 + suara 1). Anggaran internal hanya perkiraan; batas di dashboard OpenAI yang mengikat.
 
 ## 0. Prasyarat (tindakan pemilik)
-- [ ] Dashboard OpenAI: batas belanja bulanan kecil (mis. US$5) dan peringatan email aktif. Kunci OpenAI BARU khusus VocalBridge.
+- [ ] OpenAI: buat **project khusus** VocalBridge dan kunci BARU di project itu. Project settings > Limits > Spend > Edit spend limit > isi Monthly spend limit kecil (mis. US$5) > nyalakan **Enforce a hard limit** > Save. Itu satu-satunya yang benar-benar menghentikan biaya (429 `project_spend_limit_exceeded`).
+- [ ] Pasang **spend alert** di bawah hard limit (mis. 50% dan 80%). Alert HANYA notifikasi; lalu lintas tetap jalan. Jangan dianggap batas.
+- [ ] Pertahankan budget guard internal `MONTHLY_BUDGET_USD` (perkiraan, ikut berhenti sendiri) di bawah separuh hard limit.
+- [ ] Ingat: penegakan hard limit tidak instan, pengeluaran bisa sedikit melampaui angka batas; ada juga batas penggunaan per tier dari OpenAI yang terpisah.
 - [ ] Railway, proyek TERPISAH `vocalbridge-backend`: Root Directory `/backend`, satu instance, Volume `/data`, `DATA_DIR=/data`, `ALLOWED_ORIGINS=https://victorhome0209-gif.github.io`, `TRUST_PROXY=true`, `MONTHLY_BUDGET_USD=2`, `PAID_API_ENABLED=false`.
 - [ ] `OPENAI_API_KEY` dan `ADMIN_TOKEN` diisi di Railway lalu di-Seal (tidak pernah di chat, GitHub, atau frontend).
 - [ ] `GET /api/health` menjawab `paid_enabled:false`; log start memuat `"data_lock":true`.
@@ -51,6 +54,7 @@ Biaya acuan: satu giliran kalimat pendek = 4 kredit (STT 2 + terjemahan 1 + suar
 - [ ] Kredit habis: kartu menampilkan "Kredit habis", tidak negatif, tidak ada panggilan.
 - [ ] `daily_calls` terlampaui: pesan batas harian.
 - [ ] `MONTHLY_BUDGET_USD` rendah sengaja: layanan berhenti dengan pesan anggaran.
+- [ ] Hard limit tercapai (uji hanya bila aman, mis. batas sangat kecil di project uji): aplikasi menampilkan "batas biaya atau kuota ... hubungi administrator" (bukan "sibuk"); kredit tidak terpotong.
 - [ ] `POST /admin/kill {"enabled":false}`: sesi berikutnya diblokir dengan pesan jelas; sesi berjalan gagal bersih.
 - [ ] `/admin/transactions?state=UNKNOWN` kosong; `/admin/audit` `issues: []`.
 

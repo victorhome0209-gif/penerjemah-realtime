@@ -95,6 +95,18 @@ test('penyedia sibuk (429) dipetakan ke 503 dan kredit kembali', async () => {
   const r = await a.tts(code); assert.equal(r.status, 503); assert.equal(await a.credits(code), 10);
 });
 
+test('429 karena batas biaya OpenAI (hard spend limit) dibedakan dari sibuk: pesan jelas, kredit kembali, tepat satu panggilan', async () => {
+  for (const c of ['project_spend_limit_exceeded', 'organization_spend_limit_exceeded', 'credit_balance_exhausted']) {
+    const a = await boot(); const code = await a.mkCode(10); a.mock.fail.translate = 429; a.mock.failCode.translate = c;
+    const r = await a.translate(code), j = await r.json();
+    assert.equal(r.status, 503, c); assert.equal(j.code, 'provider_quota', c); assert.match(j.error, /batas biaya atau kuota/);
+    assert.equal(await a.credits(code), 10, c); assert.equal(a.mock.calls.translate, 1, c);
+    assert.ok(!JSON.stringify(j).includes('sk-'), 'kunci tidak bocor');
+  }
+  const b = await boot(); const code2 = await b.mkCode(10); b.mock.fail.tts = 429; // 429 tanpa kode kuota tetap "sibuk"
+  assert.equal((await (await b.tts(code2)).json()).code, 'provider_busy');
+});
+
 test('batas harian per kode dan pengembalian saat gagal', async () => {
   const a = await boot({ DAILY_CALLS_PER_CODE: '2' }); const code = await a.mkCode(50);
   assert.equal((await a.translate(code)).status, 200); assert.equal((await a.translate(code)).status, 200);

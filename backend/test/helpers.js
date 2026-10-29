@@ -69,7 +69,7 @@ function validate(kind, req, body) {
 }
 
 async function startMock() {
-  const m = { calls: { stt: 0, translate: 0, tts: 0 }, completed: { stt: 0, translate: 0, tts: 0 }, seen: [], fail: {}, chaos: {}, delay: 0, sttDelay: 0, strict: true, violations: [],
+  const m = { calls: { stt: 0, translate: 0, tts: 0 }, completed: { stt: 0, translate: 0, tts: 0 }, seen: [], fail: {}, failCode: {}, chaos: {}, delay: 0, sttDelay: 0, strict: true, violations: [],
     inflight: { stt: 0, translate: 0, tts: 0 }, maxInflight: { stt: 0, translate: 0, tts: 0 }, sttFor: null, translateFor: null, ttsBody: null, ttsType: 'audio/mpeg' };
   m.server = http.createServer((req, res) => {
     const ch = []; req.on('data', c => ch.push(c));
@@ -87,7 +87,7 @@ async function startMock() {
         if (m.delay) await new Promise(r => setTimeout(r, m.delay));
         if (kind === 'stt' && m.sttDelay) await new Promise(r => setTimeout(r, m.sttDelay));
         const f = m.fail[kind];
-        if (f) { res.statusCode = f; res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ error: { message: 'Incorrect API key provided: ' + FAKE_OPENAI_KEY + '.' } })); }
+        if (f) { res.statusCode = f; res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ error: Object.assign({ message: 'Incorrect API key provided: ' + FAKE_OPENAI_KEY + '.' }, m.failCode[kind] ? { code: m.failCode[kind], type: 'insufficient_quota' } : {}) })); }
         const chaos = m.chaos[kind];
         if (chaos === 'reset') { m.completed[kind]++; res.writeHead(200, { 'content-type': 'application/json', 'content-length': '500' }); res.write('{"te'); return setTimeout(() => res.socket.destroy(), 20); }
         if (chaos === 'badjson') { m.completed[kind]++; res.writeHead(200, { 'content-type': 'application/json' }); return res.end('{not json'); }

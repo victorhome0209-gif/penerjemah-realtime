@@ -1,5 +1,5 @@
 'use strict';
-// Status model OpenAI menurut dokumentasi (diperiksa 29 Okt 2026: halaman Models, Deprecations, referensi API, dan sumber SDK openai-node).
+// Status model OpenAI menurut dokumentasi (diperiksa 29 Okt 2026 dan diverifikasi ulang 30 Okt 2026: panduan Speech to text, referensi Create speech, halaman Deprecations, panduan Spend limits).
 // Dipakai untuk peringatan saat start. Selalu verifikasi ulang sebelum uji nyata.
 const MODELS = {
   'gpt-transcribe': { kind: 'stt', status: 'current' },

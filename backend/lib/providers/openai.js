@@ -12,7 +12,7 @@
 // Model gpt-4o-mini-tts DEPRECATED, berhenti 2027-01-06; pengganti memakai Realtime API (perlu TTSProvider baru).
 const crypto = require('crypto');
 const { HttpError } = require('../util');
-const { errMessage, httpError, readBody, send } = require('./common');
+const { errInfo, httpError, readBody, send } = require('./common');
 
 const TTS_VOICES = ['alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer', 'verse', 'marin', 'cedar'];
 
@@ -29,7 +29,7 @@ function interpreterPrompt(src, tgt, context) {
 }
 const base = (cfg, ctx) => Object.assign({ Authorization: 'Bearer ' + cfg.openai.key }, cfg.openai.clientRequestId && ctx && ctx.txn ? { 'X-Client-Request-Id': String(ctx.txn) } : {});
 const safety = ctx => 'vb-' + crypto.createHash('sha256').update('vb-safety:' + String((ctx && ctx.codeId) || '')).digest('hex').slice(0, 32);
-async function check(r, who, cfg) { if (!r.ok) throw httpError(r.status, await errMessage(r), who, cfg); }
+async function check(r, who, cfg) { if (!r.ok) { const i = await errInfo(r); throw httpError(r.status, i.message, who, cfg, i); } }
 const prid = r => r.headers.get('x-request-id') || null;
 
 class OpenAISTT {

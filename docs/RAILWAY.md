@@ -2,7 +2,7 @@
 
 **Status: belum ada proyek Railway untuk VocalBridge. Dokumen ini hanya rencana. Tidak ada yang dibuat, di-deploy, atau diberi kunci oleh saya.** Semua langkah di bawah dilakukan oleh Anda setelah menyetujui PR V1.1.
 **Proyek Railway TERPISAH:** buat proyek baru bernama `vocalbridge-backend`. Jangan memakai proyek, Volume, variabel, atau domain milik aplikasi lain (mis. Belimint). Satu proyek = satu layanan = satu Volume.
-Sumber yang diverifikasi dari dokumentasi Railway (29 Okt 2026): Volumes, Config as Code, Monorepo, Variables. Yang **belum** terverifikasi (healthcheck, replika ber-Volume) ditandai ⚠ dan harus dicek langsung di UI Railway.
+Sumber yang diverifikasi dari dokumentasi Railway (29-30 Okt 2026): Volumes, Config as Code, Monorepo, Variables, Healthchecks. Yang **belum** terverifikasi ditandai ⚠: apakah layanan ber-Volume boleh punya banyak replika (dokumen tidak menyatakan; tetap satu instance) dan pengaturan PR environments.
 
 ## 1. Rencana konfigurasi
 | Pengaturan | Nilai | Catatan |
@@ -14,7 +14,7 @@ Sumber yang diverifikasi dari dokumentasi Railway (29 Okt 2026): Volumes, Config
 | **Jumlah instance** | **1** | Jangan menaikkan replika. Lihat bagian 3 |
 | **Volume** | mount path **`/data`** | Tanpa Volume, saldo dan transaksi hilang saat deploy ulang |
 | Watch Paths | `/backend/**` | Perubahan frontend/docs tidak memicu deploy backend |
-| Healthcheck path | `/api/health` ⚠ | Harus menjawab 200. Cek apakah healthcheck Railway ditolak oleh aturan origin (lihat bagian 5) |
+| Healthcheck path | `/api/health` | Terverifikasi di dokumentasi Railway (30 Okt 2026): cukup balasan 2xx; batas waktu bawaan 300 dtk; hanya dipakai saat deploy (bukan pemantauan berkelanjutan); permintaan datang dari host `healthcheck.railway.app` dan server tidak menyaring host |
 | Domain | Generate Domain (Settings → Networking) | Alamat inilah yang diisi di `VB_CONFIG.API_BASE` |
 | Restart policy | bawaan | `railway.json` tidak dipakai: dokumentasi Railway menandai config-as-code deprecated (berkas lama jalan sampai 2026-12-01) dan path-nya tidak mengikuti Root Directory |
 `PORT` disuntikkan Railway; server membacanya otomatis. **Jangan** mengisi `PORT`.
@@ -56,10 +56,10 @@ Rahasia: isi sendiri di Railway. Jangan menempelkannya ke chat, GitHub, atau Git
 8. `GET https://ALAMAT/api/health` → `{"ok":true,"paid_enabled":false,"store_ok":true}`.
 9. Uji keamanan S1–S6 di `docs/UJI-NYATA.md` bagian B (tanpa biaya).
 10. (V1.2: tanpa alamat ini aplikasi hanya menampilkan "Layanan AI belum terhubung." dan tidak menerjemahkan apa pun.) Isi `VB_CONFIG.API_BASE` di `index.html` dengan alamat Railway (alamat publik, bukan rahasia) melalui PR terpisah, atau tempel di Pengaturan aplikasi.
-11. Pasang **batas belanja di dashboard OpenAI**, lalu baru ikuti `docs/UJI-NYATA.md` bagian C untuk menyalakan `PAID_API_ENABLED=true` dengan biaya terbatas.
+11. Pasang **hard spend limit (Enforce a hard limit) dan spend alert di project OpenAI khusus**, lalu baru ikuti `docs/UJI-NYATA.md` bagian C untuk menyalakan `PAID_API_ENABLED=true` dengan biaya terbatas.
 
 ## 5. Healthcheck dan pengamanan
-- Endpoint `/api/health` publik dan tidak membocorkan kunci. Permintaan tanpa header `Origin` (healthcheck, curl) diizinkan; hanya permintaan yang membawa `Origin` asing yang ditolak 403, jadi healthcheck server-ke-server tidak terblokir ⚠ (verifikasi saat deploy pertama).
+- Endpoint `/api/health` publik dan tidak membocorkan kunci. Permintaan tanpa header `Origin` (healthcheck, curl) diizinkan; hanya permintaan yang membawa `Origin` asing yang ditolak 403, dan server tidak menyaring header Host. Dokumentasi Railway tidak membahas header Origin pada healthcheck, jadi cukup pastikan deploy pertama lulus. Layanan ber-Volume dapat mengalami henti singkat saat deploy ulang (menurut Railway, agar data tidak rusak); penjaga satu instance menahan proses baru sampai kunci lama bebas.
 - Kunci admin dan kode akses hanya lewat HTTPS (domain Railway bersertifikat). `TRUST_PROXY=true` agar pembatas per IP membaca IP klien dari proxy Railway.
 
 ## 6. Operasi

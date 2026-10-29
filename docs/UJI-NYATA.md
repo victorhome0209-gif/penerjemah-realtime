@@ -5,7 +5,7 @@
 **Belum dijalankan.** Prosedur ini hanya boleh dimulai setelah Anda memberi izin uji. Tujuan: membuktikan alur nyata dengan biaya kurang dari sekitar US$0,50.
 
 ## A. Prasyarat (langkah Anda)
-1. Di dashboard OpenAI, pasang **batas belanja bulanan** kecil (mis. US$5).
+1. Di OpenAI, buat project khusus VocalBridge dengan kunci khusus, lalu pasang **hard spend limit** kecil (Project settings > Limits > Spend > Enforce a hard limit; mis. US$5) dan **spend alert** di bawahnya. Alert hanya notifikasi, bukan batas. Lihat `docs/BACKEND.md` bagian 6.
 2. Backend di-deploy (setelah persetujuan) dengan: `PAID_API_ENABLED=false`, `MONTHLY_BUDGET_USD=2`, `ADMIN_TOKEN`, `ALLOWED_ORIGINS`, `TRUST_PROXY=true`, Volume `/data`, dan `OPENAI_API_KEY` yang Anda isi sendiri di hosting.
 3. `GET /api/health` menampilkan `"paid_enabled": false`.
 

@@ -71,14 +71,16 @@ curl -X POST https://ALAMAT/admin/transactions/resolve -H "X-Admin-Token: ..." -
 `request_id` wajib (8-64 karakter) agar pengulangan perintah tidak mengubah saldo dua kali; `note` wajib. Hanya UNKNOWN yang dapat direkonsiliasi. Tidak ada penyelesaian otomatis berdasarkan waktu.
 `GET /admin/audit` memeriksa konsistensi (saldo, kredit ditahan, status) dan harus mengembalikan `{"issues":[]}`.
 
-## 6. Dua lapis batas biaya: jangan disamakan
-| | Batas INTERNAL (`MONTHLY_BUDGET_USD`) | Batas di DASHBOARD OpenAI |
-|---|---|---|
-| Dasar | **Perkiraan** dari durasi audio, jumlah karakter, harga yang Anda isi | Tagihan nyata OpenAI |
-| Bisa salah | Ya: harga berubah, estimasi TTS dari karakter, model baru | Tidak (ini angka resmi) |
-| Mengikat | Hanya menghentikan backend ini | Menghentikan semua pemakaian kunci |
-| Siapa yang mengatur | Variabel hosting | **Anda, manual**, di dashboard OpenAI |
-Backend tidak dapat membaca batas dashboard. Pasang **keduanya**; isi batas internal tidak lebih dari separuh batas dashboard. `/admin/usage` menampilkan `estimate.basis = "perkiraan internal, bukan tagihan"`, bagian UNKNOWN (`includesUnknownUsd`), dan `reportedByProvider` (detik audio dan token yang dilaporkan OpenAI di respons) sebagai pembanding, tetapi semuanya tetap bukan tagihan. Transaksi UNKNOWN **tetap dihitung** dalam estimasi.
+## 6. Tiga lapis pengendali biaya: jangan disamakan
+| | Budget guard INTERNAL (`MONTHLY_BUDGET_USD`) | Spend ALERT OpenAI | HARD spend limit OpenAI (per project) |
+|---|---|---|---|
+| Dasar | **Perkiraan** dari durasi audio, karakter, harga yang Anda isi | Tagihan nyata | Tagihan nyata |
+| Efek saat tercapai | Backend ini berhenti (503 `budget_exceeded`) | **Hanya notifikasi. Lalu lintas API tetap jalan. BUKAN batas.** | Permintaan gagal dengan 429 `project_spend_limit_exceeded` (organisasi: `organization_spend_limit_exceeded`) |
+| Bisa salah | Ya (harga berubah, estimasi TTS) | Tidak | Tidak, tetapi penegakan tidak instan: pengeluaran bisa sedikit melampaui angka batas |
+| Mengikat | Hanya backend ini | Tidak | Semua pemakaian project itu |
+| Siapa yang mengatur | Variabel hosting | **Anda, manual** | **Anda, manual**: Project settings > Limits > Spend > Edit spend limit > isi Monthly spend limit > nyalakan **Enforce a hard limit** > Save |
+Pasang **ketiganya**. Pakai project OpenAI khusus VocalBridge dengan kunci khusus, lalu hard limit di project itu (batas organisasi sebagai langit-langit terakhir). Pasang alert di bawah hard limit (mis. 50% dan 80%) hanya agar Anda sempat bertindak; jangan menganggap alert sebagai pembatas. Isi budget guard internal tidak lebih dari separuh hard limit. OpenAI juga punya batas penggunaan bulanan per tier yang terpisah dari batas yang Anda atur.
+Backend tidak dapat membaca batas di dashboard. Bila hard limit tercapai, backend menampilkan `provider_quota` ("batas biaya atau kuota OpenAI tercapai, hubungi administrator"); mencoba lagi tidak membantu sampai Anda menaikkan batas atau saldo. Sumber: panduan OpenAI "Spend limits" (diperiksa 30 Okt 2026). `/admin/usage` menampilkan `estimate.basis = "perkiraan internal, bukan tagihan"`, bagian UNKNOWN (`includesUnknownUsd`), dan `reportedByProvider` (detik audio dan token yang dilaporkan OpenAI di respons) sebagai pembanding, tetapi semuanya tetap bukan tagihan. Transaksi UNKNOWN **tetap dihitung** dalam estimasi.
 
 ## 7. Admin API
 Semua endpoint admin memakai header `X-Admin-Token`, dibatasi percobaan salah per IP, dan perubahan dicatat di `GET /admin/log` (tanpa kode akses atau token).
