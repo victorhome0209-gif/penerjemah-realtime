@@ -3,10 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0f1420">
-<title>Penerjemah Suara</title>
+<meta name="theme-color" content="#060b19">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: data:; connect-src https: http://localhost:* http://127.0.0.1:*; object-src 'none'; base-uri 'none'; form-action 'none'">
+<script>window.VB_CONFIG = { API_BASE: "" }; /* alamat publik backend HTTPS (bukan rahasia). Kosong = mode Gratis. */</script>
+<title>VocalBridge</title>
 <style>
-  :root{--bg:#0f1420;--card:#171e2e;--card2:#1e2740;--line:#2a3552;--txt:#e8ecf5;--mut:#8e9bb8;--me:#3b82f6;--them:#10b981;--warn:#f59e0b;--bad:#ef4444;--ok:#10b981}
+  :root{--bg:#060b19;--card:rgba(255,255,255,.055);--card2:rgba(255,255,255,.09);--line:rgba(255,255,255,.13);--txt:#eaf0ff;--mut:#98a6c8;--me:#3d7bff;--them:#10b981;--warn:#f59e0b;--bad:#ef4444;--ok:#10b981}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{height:100%;margin:0}
   body{background:var(--bg);color:var(--txt);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;overscroll-behavior:none}
@@ -116,60 +118,155 @@
   details>div{padding:0 12px 12px}
   #toast{position:fixed;left:12px;right:12px;bottom:calc(160px + env(safe-area-inset-bottom));background:#2a3552;color:var(--txt);padding:10px 14px;border-radius:12px;font-size:14px;opacity:0;pointer-events:none;transition:.2s;z-index:20;text-align:center}
   #toast.show{opacity:1}
+
+  /* ===================== VocalBridge V1: midnight navy + kaca susu ===================== */
+  :root{--saya:#8b6cff;--lawan:#2fd6b5;--acc:#3d7bff;--glass:rgba(255,255,255,.06)}
+  body{background:radial-gradient(1000px 520px at 12% -8%,#14234a 0,transparent 60%),#060b19;background-attachment:fixed}
+  #app{max-width:960px}
+  .vbh{display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top)) 16px 4px}
+  .vb-logo{width:38px;height:32px;color:#4f8cff;flex:none}
+  .vb-title{flex:1;min-width:0;display:grid;line-height:1.15}
+  .vb-title b{font-size:clamp(20px,5vw,28px);font-weight:700;letter-spacing:-.01em}
+  .vb-title span{font-size:13px;color:var(--mut)}
+  .vb-pro{display:inline-flex;gap:6px;align-items:center;padding:7px 13px;border-radius:99px;border:1px solid rgba(255,255,255,.18);background:var(--glass);font-weight:700;font-size:13px;color:#ffd77a;white-space:nowrap}
+  .vb-pro svg{width:15px;height:15px}
+  .vb-pro.free{color:var(--mut)}
+  .vb-icon{width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,.18);background:var(--glass);color:var(--txt);display:grid;place-items:center;padding:0;cursor:pointer}
+  .vb-icon svg{width:20px;height:20px}
+  #btnSettings{font-size:0}
+  #view-talk{padding:0 14px}
+  .vb-status{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:16px;border:1px solid var(--line);background:var(--glass);margin-top:8px}
+  .vb-dot{width:12px;height:12px;border-radius:50%;background:#5b6784;flex:none}
+  .vb-status[data-s="listen"] .vb-dot{background:#3ddc97;box-shadow:0 0 12px #3ddc97;animation:vbp 1.8s ease-in-out infinite}
+  .vb-status[data-s="me"] .vb-dot{background:var(--saya);box-shadow:0 0 12px var(--saya);animation:vbp 1.8s ease-in-out infinite}
+  .vb-status[data-s="proc"] .vb-dot{background:var(--warn);box-shadow:0 0 12px var(--warn)}
+  .vb-status[data-s="out"] .vb-dot{background:var(--acc);box-shadow:0 0 12px var(--acc)}
+  .vb-status[data-s="wait"] .vb-dot{background:var(--warn)}
+  @keyframes vbp{50%{opacity:.45}}
+  .vb-status-txt{flex:1;min-width:0;display:grid;line-height:1.3}
+  .vb-status-txt b{font-size:15px}
+  #live{min-height:0;padding:0;font-style:normal;font-size:13px;color:var(--mut);word-break:break-word}
+  .vb-mode{font-size:12.5px;color:var(--mut);text-align:right;white-space:nowrap}
+  @media(max-width:520px){.vb-mode{display:none}}
+  .vb-level{height:6px;border-radius:6px;background:rgba(255,255,255,.07);overflow:hidden;margin:8px 4px 0}
+  .vb-level i{display:block;height:100%;width:0;background:linear-gradient(90deg,#3ddc97 0%,#3ddc97 60%,#ffb454 80%,#ff6b7d 100%);transition:width .06s}
+  .vb-hint{margin:8px 2px 0;font-size:13.5px;color:#ffd8a0;background:rgba(255,180,84,.09);border:1px solid rgba(255,180,84,.3);border-radius:12px;padding:8px 12px}
+  .vb-setup{margin-top:10px;border:1px solid var(--line);border-radius:16px;background:var(--glass);padding:12px 14px}
+  .vb-setup label{margin-top:0}
+  .vb-setup .row{margin-top:10px}
+  .vb-scroll{flex:1;min-height:0;overflow-y:auto;padding:12px 0 8px;-webkit-overflow-scrolling:touch;display:grid;gap:12px;align-content:start}
+  .vb-empty{color:var(--mut);font-size:15px;line-height:1.7;padding:8px 6px}
+  .vb-empty b{color:var(--txt)}
+  .vb-turn{border:1px solid var(--line);border-radius:20px;padding:14px;background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.03));-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);container-type:inline-size}
+  .vb-turn-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+  .vb-turn-head b{font-size:17px}
+  .vb-dir{font-size:13px;color:var(--mut)}
+  .vb-turn-head time{margin-left:auto;font-size:13px;color:var(--mut);font-variant-numeric:tabular-nums}
+  .vb-wave{width:28px;height:20px;flex:none}
+  .vb-turn.them .vb-wave{color:var(--lawan)}.vb-turn.me .vb-wave{color:var(--saya)}
+  .vb-chip{font-size:12px;border-radius:99px;padding:2px 10px;border:1px solid rgba(255,180,84,.4);color:var(--warn);background:rgba(255,180,84,.08)}
+  .vb-chip:empty{display:none}.vb-chip.bad{border-color:rgba(255,107,125,.5);color:#ff9aa7;background:rgba(255,107,125,.08)}
+  .vb-pair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+  @container (max-width:520px){.vb-pair{grid-template-columns:minmax(0,1fr)}}
+  .vb-box{position:relative;border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:rgba(255,255,255,.04);display:grid;gap:4px;min-height:88px;align-content:start}
+  .vb-box.tr{background:rgba(61,123,255,.14);border-color:rgba(100,150,255,.35)}
+  .vb-turn.me .vb-box.tr{background:rgba(139,108,255,.16);border-color:rgba(160,135,255,.4)}
+  .vb-box small{font-size:12.5px;color:var(--mut)}
+  .vb-box p{margin:0;font-size:clamp(17px,4.2vw,22px);font-weight:600;line-height:1.3;padding-right:84px;word-break:break-word;min-height:1.3em}
+  .vb-box p.dim{color:var(--mut);font-weight:500}
+  .vb-act{position:absolute;right:10px;top:10px;display:flex;gap:8px}
+  .vb-act button{width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.07);color:#fff;display:grid;place-items:center;padding:0;cursor:pointer}
+  .vb-act button svg{width:16px;height:16px}
+  .vb-act button:disabled{opacity:.35;cursor:default}
+  .vb-edit{display:grid;gap:8px}
+  .vb-edit textarea{font-size:17px;min-height:72px}
+  .vb-edit .row{gap:8px}
+  .vb-meta{font-size:12px;color:var(--mut);margin-top:8px}
+  .vb-dock{display:flex;justify-content:center;align-items:flex-end;gap:clamp(24px,12vw,90px);padding:10px 0 calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);margin:0 -14px;background:linear-gradient(180deg,rgba(6,11,25,0),rgba(6,11,25,.92) 30%)}
+  .vb-mic-wrap,.vb-stop-wrap{display:grid;justify-items:center;gap:2px;text-align:center}
+  .vb-mic-wrap b{font-size:19px;margin-top:6px}
+  .vb-mic-wrap span,.vb-stop-wrap span{font-size:12.5px;color:var(--mut);max-width:210px;line-height:1.35}
+  .vb-stop-wrap b{font-size:15px;margin-top:5px}
+  .vb-mic{width:92px;height:92px;border-radius:50%;border:0;color:#fff;display:grid;place-items:center;cursor:pointer;padding:0;
+    background:radial-gradient(circle at 34% 26%,#8fc0ff 0,#3d86ff 34%,#1546d6 70%,#0b2a8f 100%);
+    box-shadow:0 0 0 6px rgba(61,123,255,.18),0 0 0 12px rgba(61,123,255,.08),0 20px 40px -8px rgba(30,90,255,.65),inset 0 -10px 18px rgba(0,20,100,.45),inset 0 8px 14px rgba(255,255,255,.35)}
+  .vb-mic svg{width:42px;height:42px;filter:drop-shadow(0 2px 3px rgba(0,0,40,.5))}
+  .vb-mic[data-s="me"]{background:radial-gradient(circle at 34% 26%,#c9b6ff 0,#8b6cff 36%,#5a35d6 72%,#34188f 100%);box-shadow:0 0 0 6px rgba(139,108,255,.2),0 0 0 12px rgba(139,108,255,.09),0 20px 40px -8px rgba(110,70,255,.6),inset 0 -10px 18px rgba(30,0,100,.45),inset 0 8px 14px rgba(255,255,255,.35)}
+  .vb-mic[data-s="proc"],.vb-mic[data-s="out"]{filter:saturate(.4) brightness(.85)}
+  .vb-mic:focus-visible,.vb-stop:focus-visible,.vb-icon:focus-visible,.vb-act button:focus-visible{outline:3px solid #fff;outline-offset:3px}
+  .vb-stop{width:60px;height:60px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:radial-gradient(circle at 34% 26%,#3b4a74,#18203a 70%);display:grid;place-items:center;cursor:pointer;padding:0;box-shadow:0 12px 24px -10px #000,inset 0 4px 8px rgba(255,255,255,.12)}
+  .vb-stop i{width:18px;height:18px;border-radius:4px;background:#fff;display:block}
+  .vb-stop:disabled{opacity:.4}
+  .vb-modal{position:fixed;inset:0;background:rgba(2,5,14,.78);display:none;z-index:30;align-items:center;justify-content:center;padding:16px}
+  .vb-modal.open{display:flex}
+  .vb-modal .box{background:#0b1226;border:1px solid var(--line);border-radius:20px;max-width:560px;width:100%;max-height:90dvh;overflow-y:auto;padding:20px}
+  .vb-modal h2{margin:0 0 10px;font-size:20px}
+  .vb-modal ul{margin:8px 0;padding-left:20px;line-height:1.55;font-size:14.5px}
+  .vb-modal li{margin:5px 0}
+  .backbar{display:flex;align-items:center;gap:10px;padding:8px 14px}
+  .backbar b{flex:1;font-size:17px}
+  .sheetbtns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  #toast{bottom:calc(150px + env(safe-area-inset-bottom))}
+  @media (prefers-reduced-motion:reduce){.vb-status .vb-dot{animation:none!important}}
 </style>
 </head>
 <body>
 <div id="app">
-  <header>
-    <h1>🎙️ Penerjemah</h1>
-    <span class="chip" id="support">…</span>
-    <span class="chip" id="timer">00:00</span>
-    <button id="btnSettings" aria-label="Pengaturan">⚙️</button>
+  <header class="vbh">
+    <svg class="vb-logo" viewBox="0 0 48 40" aria-hidden="true"><g stroke="currentColor" stroke-width="3.4" stroke-linecap="round"><line x1="4" y1="16" x2="4" y2="24"/><line x1="11" y1="10" x2="11" y2="30"/><line x1="18" y1="4" x2="18" y2="36"/><line x1="25" y1="9" x2="25" y2="31"/><line x1="32" y1="13" x2="32" y2="27"/><line x1="39" y1="8" x2="39" y2="32"/><line x1="45" y1="15" x2="45" y2="25"/></g></svg>
+    <div class="vb-title"><b>VocalBridge</b><span>Penerjemah meeting pribadi</span></div>
+    <span class="vb-pro free" id="planBadge">Gratis</span>
+    <button class="vb-icon" id="btnSettings" aria-label="Pengaturan"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
   </header>
-  <nav id="tabs">
-    <button data-view="talk" class="on">🗣️ Bicara</button>
-    <button data-view="test">🧪 Uji</button>
-    <button data-view="voice">🎤 Suara saya</button>
-  </nav>
 
-  <!-- ===================== BICARA ===================== -->
+  <!-- ===================== PERCAKAPAN ===================== -->
   <section class="view on" id="view-talk">
-    <main id="stage">
-      <div id="subOrig"></div>
-      <div id="subBig" class="side-me"></div>
-      <div class="hint" id="hint">
-        <b>Mulai cepat</b><br>
-        1. Buka ⚙️ lalu isi <b>API key OpenAI</b> (untuk mengenali suara dan menerjemahkan).<br>
-        2. Buka tab <b>🎤 Suara saya</b>, lakukan <b>tes mikrofon</b>, lalu (opsional) buat <b>klon suara</b>.<br>
-        3. Di sini, tekan <b>Saya bicara</b> lalu bicara bahasa Indonesia. Saat orang asing bicara, tekan <b>Lawan bicara</b>.<br>
-        4. Untuk menguji dengan beberapa orang, pakai tab <b>🧪 Uji</b>.<br>
-        Pakai earphone bila memungkinkan supaya suara terjemahan tidak tertangkap mikrofon.
+    <section class="vb-status" id="vbStatus" data-s="idle" aria-live="polite">
+      <span class="vb-dot"></span>
+      <div class="vb-status-txt"><b id="vbTitle">Belum ada sesi</b><span id="live">Pilih sumber audio lalu mulai sesi.</span></div>
+      <span class="vb-mode" id="vbMode"></span>
+      <span class="chip" id="timer">00:00</span>
+    </section>
+    <div class="vb-level" id="meterTalkBox" aria-hidden="true"><i id="meterTalk"></i></div>
+    <div class="vb-hint" id="vbHint" hidden></div>
+
+    <section class="vb-setup" id="vbSetup">
+      <label for="vbSrc">Sumber suara lawan bicara</label>
+      <select id="vbSrc">
+        <option value="mic">Mikrofon: suara lawan terdengar lewat speaker (cocok untuk HP)</option>
+        <option value="tab" id="vbSrcTab">Audio tab browser: Meet atau Zoom web (Chrome desktop)</option>
+      </select>
+      <p class="note" id="vbSrcNote"></p>
+      <div class="row"><button class="sm" id="vbStart">Mulai sesi</button></div>
+    </section>
+
+    <main class="vb-scroll" id="convList">
+      <div class="vb-empty" id="convEmpty">
+        <b>Cara pakai</b><br>
+        1. Pilih sumber suara lawan lalu <b>Mulai sesi</b> dan izinkan mikrofon.<br>
+        2. Lawan bicara didengarkan otomatis, teksnya muncul dalam Inggris dan Indonesia.<br>
+        3. Saat giliran Anda, ketuk <b>Saya Bicara</b>, bicara dalam Bahasa Indonesia, lalu diam sebentar.<br>
+        Pakai earphone supaya suara terjemahan tidak tertangkap mikrofon.
       </div>
-      <div id="hist"></div>
     </main>
-    <div id="dock">
-      <div id="live">Tekan salah satu tombol untuk mulai.</div>
-      <div class="meter" id="meterTalkBox" style="display:none"><i id="meterTalk"></i></div>
-      <div id="typeRow">
-        <select id="typeSide" style="width:auto"><option value="me">Saya (ID)</option><option value="them">Lawan (EN)</option></select>
-        <input id="typed" type="text" placeholder="Ketik kalimat lalu Kirim" autocomplete="off">
-        <button class="pri" id="sendTyped">Kirim</button>
+
+    <footer class="vb-dock">
+      <div class="vb-mic-wrap">
+        <button class="vb-mic" id="vbMic" data-s="idle" aria-label="Saya Bicara"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+        <b id="vbMicLabel">Saya Bicara</b>
+        <span id="vbMicHint">Ketuk untuk mulai sesi dan izinkan mikrofon</span>
       </div>
-      <div class="btns">
-        <button class="talk me" id="btnMe"><b><span class="dot"></span>Saya bicara</b><small>Indonesia → Inggris</small></button>
-        <button class="talk them" id="btnThem"><b><span class="dot"></span>Lawan bicara</b><small>Inggris → Indonesia</small></button>
+      <div class="vb-stop-wrap">
+        <button class="vb-stop" id="vbStop" aria-label="Hentikan sesi" disabled><i></i></button>
+        <b>Hentikan</b>
+        <span>Akhiri sesi</span>
       </div>
-      <div class="mini">
-        <button class="sm" id="btnType">⌨️ Ketik</button>
-        <button class="sm" id="btnClear">🗑️ Bersihkan</button>
-        <span class="sp" id="eng">mesin: –</span>
-        <span id="lat">–</span>
-      </div>
-    </div>
+    </footer>
   </section>
 
-  <!-- ===================== UJI ===================== -->
+  <!-- ===================== QA LAB ===================== -->
   <section class="view" id="view-test">
+    <div class="backbar"><button class="sm" id="btnBackTalk">← Percakapan</button><b>QA Lab</b></div>
     <div class="scroll">
       <div class="card">
         <h3>Data penguji</h3>
@@ -239,10 +336,36 @@
     </div>
   </section>
 
-  <!-- ===================== SUARA SAYA ===================== -->
-  <section class="view" id="view-voice">
-    <div class="scroll">
-      <div class="card">
+</div>
+
+<div id="toast"></div>
+
+<div id="sheet">
+  <div id="sheetBody">
+    <h2>Pengaturan <button class="sm" id="btnClose">Tutup</button></h2>
+
+    <details open id="secBackend">
+      <summary>Akses backend (uji)</summary>
+      <div>
+        <p class="note">Tanpa kode akses, aplikasi memakai <b>mode Gratis</b>: pengenal suara bawaan browser, terjemahan MyMemory, dan suara perangkat. Dengan kode akses dari administrator, ucapan diproses OpenAI lewat server VocalBridge.</p>
+        <label for="vbApi">Alamat server (HTTPS)</label>
+        <input id="vbApi" type="url" placeholder="https://…" autocomplete="off" inputmode="url">
+        <label for="vbCode">Kode akses uji (dari administrator)</label>
+        <input id="vbCode" type="password" placeholder="VB-…" autocomplete="off">
+        <div class="sheetbtns"><button class="pri" id="vbSave">Simpan dan cek</button><button class="sm" id="vbDisconnect">Putuskan</button></div>
+        <div class="note" id="vbConnInfo" style="margin-top:8px">Belum terhubung. Mode Gratis aktif.</div>
+        <p class="note"><b>Jangan</b> mengisi API key OpenAI atau penyedia lain di sini. Kunci penyedia hanya ada di server. Kode akses disimpan untuk tab ini saja dan hilang saat tab ditutup.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>Audio dan mikrofon</summary>
+      <div>
+        <label>Izin mikrofon</label>
+        <div class="note" id="permState">Belum diperiksa.</div>
+        <div class="note" id="devInfo">Perangkat: belum dipakai.</div>
+        <div style="margin-top:6px"><span class="chip" id="support">…</span></div>
+        <div class="card">
         <h3>1. Tes mikrofon</h3>
         <p class="note">Agar ucapan terdengar jelas: pegang HP 10–15 cm dari mulut, di ruangan sunyi. Headset ber-mikrofon lebih baik.</p>
         <label>Sumber mikrofon</label>
@@ -252,141 +375,84 @@
         <div class="note" id="micHint">Setelah menekan tombol, ucapkan: "satu, dua, tiga … sepuluh".</div>
         <div id="micVerdict"></div>
       </div>
-
-      <div class="card">
-        <h3>2. Rekam sampel suara kamu</h3>
-        <p class="note">Baca naskah di bawah dengan suara natural dan ekspresif (jangan berbisik atau berteriak). Rekaman 60–120 detik, tanpa musik. Disimpan lossless (WAV) supaya jernih.</p>
-        <div class="readtext" id="readText"></div>
-        <label>Kualitas rekaman</label>
-        <select id="sampleProfile">
-          <option value="raw">Mentah, tanpa pemrosesan (disarankan di ruangan sunyi)</option>
-          <option value="clean">Dengan peredam bising (untuk ruangan kurang sunyi)</option>
-        </select>
-        <button class="pri big" id="btnRecSample" style="margin-top:8px">⏺ Mulai rekam</button>
-        <div class="meter" style="margin-top:8px"><i id="meterRec"></i></div>
-        <div class="note" id="recInfo">Belum ada rekaman.</div>
-        <audio id="samplePrev" controls style="display:none;width:100%;margin-top:8px"></audio>
-        <div id="recVerdict"></div>
-        <label>Atau pilih file rekaman yang sudah ada</label>
-        <input type="file" id="sampleFile" accept="audio/*">
-      </div>
-
-      <div class="card">
-        <h3>3. Buat klon suara</h3>
-        <p class="note">Butuh API key ElevenLabs (paket Starter ke atas) di ⚙️ Pengaturan. Status kunci: <b id="elKeyState">belum diisi</b></p>
-        <label class="chk"><input type="checkbox" id="consent"> Ini suara saya sendiri dan saya setuju dikloning</label>
-        <label>Nama klon</label>
-        <input id="cloneName" type="text" value="Suara Saya">
-        <button class="pri big" id="cloneBtn" style="margin-top:8px">✨ Buat klon dari rekaman</button>
-        <div class="note" id="cloneStatus"></div>
-        <label>Voice ID (terisi otomatis)</label>
-        <input id="voiceId" type="text" placeholder="belum ada klon" autocomplete="off">
-      </div>
-
-      <div class="card">
-        <h3>4. Dengarkan hasilnya</h3>
-        <label>Kalimat Inggris untuk dicoba</label>
-        <textarea id="voiceTestText" rows="2">Hello, this is my own voice speaking English. Nice to meet you.</textarea>
-        <div class="row" style="margin-top:8px">
-          <button class="sm" id="btnPlayClone">▶ Suara klon</button>
-          <button class="sm" id="btnPlayOrig">▶ Suara asli</button>
-        </div>
-        <label class="chk" style="margin-top:10px"><input type="checkbox" id="useEL"> Pakai suara klon saat menerjemahkan (arah Saya → Inggris)</label>
-        <div class="note" id="voiceStatus"></div>
-        <p class="note">Karakter terpakai: <b id="elChars">0</b> · perkiraan biaya suara: <b id="elCost">$0.00</b></p>
-      </div>
-    </div>
-  </section>
-</div>
-
-<div id="toast"></div>
-
-<!-- ===================== PENGATURAN ===================== -->
-<div id="sheet">
-  <div id="sheetBody">
-    <h2>Pengaturan <button class="sm" id="btnClose">Tutup</button></h2>
-
-    <details open>
-      <summary>Kunci layanan (tersimpan hanya di HP ini)</summary>
-      <div>
-        <label>API key OpenAI (pengenal suara dan terjemahan)</label>
-        <div class="row"><input id="keyOpenAI" type="password" placeholder="sk-…" autocomplete="off"><button class="sm" data-paste="keyOpenAI">Tempel</button></div>
-        <label>API key Claude (jika terjemahan pakai Claude)</label>
-        <div class="row"><input id="keyClaude" type="password" placeholder="sk-ant-…" autocomplete="off"><button class="sm" data-paste="keyClaude">Tempel</button></div>
-        <label>API key ElevenLabs (untuk suara klon)</label>
-        <div class="row"><input id="elkey" type="password" placeholder="sk_…" autocomplete="off"><button class="sm" data-paste="elkey">Tempel</button></div>
-        <p class="note">Jangan pakai di HP orang lain. Kunci dikirim langsung ke penyedia, tidak lewat server lain.</p>
-      </div>
-    </details>
-
-    <details open>
-      <summary>Pengenal suara dan mikrofon</summary>
-      <div>
-        <label>Pengenal suara (mengubah suara jadi teks)</label>
-        <select id="sttEngine">
-          <option value="openai">OpenAI: lebih akurat, rekaman jernih (disarankan)</option>
-          <option value="browser">Browser: gratis, bawaan HP</option>
-        </select>
-        <label>Model pengenal suara OpenAI</label>
-        <input id="modelSTT" type="text" autocomplete="off">
-        <label>Mutu mikrofon saat menerjemahkan</label>
+        <label for="micProfile">Mutu mikrofon</label>
         <select id="micProfile">
           <option value="clean">Jernih otomatis: peredam gema dan bising (disarankan)</option>
           <option value="raw">Mentah: tanpa pemrosesan</option>
         </select>
-        <label>Kepekaan mendeteksi suara: <span id="sensVal">1.0</span>×</label>
+        <label for="sens">Kepekaan mendeteksi suara: <span id="sensVal">1.0</span>×</label>
         <input type="range" id="sens" min="0.5" max="2" step="0.1" value="1">
-        <p class="note">Naikkan kepekaan bila suara pelan tidak terdeteksi; turunkan bila bising dianggap suara. Pengenal suara "Browser" memakai mikrofon bawaan HP dan tidak bisa diatur mutunya.</p>
+        <p class="note">Naikkan kepekaan bila suara pelan tidak terdeteksi; turunkan bila bising dianggap suara. Aplikasi tidak menambah penguatan suara sendiri.</p>
+        <label class="chk"><input type="checkbox" id="keepAwake" checked> Jaga layar tetap menyala saat sesi berjalan</label>
       </div>
     </details>
 
     <details>
-      <summary>Terjemahan</summary>
+      <summary>Suara terjemahan</summary>
       <div>
-        <label>Mesin terjemahan</label>
-        <select id="engine">
-          <option value="openai">AI: OpenAI (akurat, disarankan)</option>
-          <option value="claude">AI: Claude (akurat)</option>
-          <option value="mymemory">MyMemory (gratis, sering salah)</option>
-        </select>
-        <label>Model OpenAI (terjemahan)</label>
-        <input id="modelOpenAI" type="text" autocomplete="off">
-        <label>Model Claude</label>
-        <input id="modelClaude" type="text" autocomplete="off">
-      </div>
-    </details>
-
-    <details>
-      <summary>Suara dan tampilan</summary>
-      <div>
-        <label>Mode suara</label>
+        <label for="mode">Mode suara</label>
         <select id="mode">
-          <option value="face">Tatap muka: terjemahan Inggris lewat speaker HP, ucapan lawan hanya teks</option>
-          <option value="headset">Earphone / Zoom: kedua arah diucapkan</option>
+          <option value="face">Suara Inggris saya saja (lawan hanya teks)</option>
+          <option value="headset">Dua arah: terjemahan lawan ikut dibacakan (pakai earphone)</option>
           <option value="text">Teks saja: tanpa suara</option>
         </select>
-        <label>Kecepatan suara: <span id="rateVal">1.0</span>×</label>
+        <label for="rate">Kecepatan suara perangkat: <span id="rateVal">1.0</span>×</label>
         <input type="range" id="rate" min="0.7" max="1.4" step="0.1" value="1.0">
-        <label>Ukuran subtitle: <span id="sizeVal">30</span> px</label>
-        <input type="range" id="subSize" min="18" max="56" value="30">
-        <label class="chk"><input type="checkbox" id="subOn" checked> Subtitle menyala per kata</label>
-        <label class="chk"><input type="checkbox" id="keepAwake" checked> Jaga layar tetap menyala saat mendengarkan</label>
-        <label>Model ElevenLabs</label>
-        <input id="elModel" type="text" autocomplete="off">
+        <p class="note">Suara dari OpenAI dibuat oleh AI, bukan suara manusia. Klon suara dinonaktifkan di versi ini.</p>
       </div>
     </details>
 
     <details>
-      <summary>Catatan</summary>
-      <div class="note">
-        • Android: pakai <b>Chrome</b>. iPhone: pakai <b>Safari</b>. Izinkan mikrofon saat diminta.<br>
-        • Pengenal suara OpenAI merekam langsung dari mikrofon, lalu mengirim potongan ucapan. Biayanya kecil (kira-kira beberapa sen per jam bicara).<br>
-        • Di iPhone, saat mikrofon aktif suara bisa keluar pelan lewat earpiece. Pakai earphone.<br>
-        • Hasil terjemahan dan pengenalan suara adalah perkiraan mesin; periksa angka, nama, dan tanggal penting secara tertulis.
+      <summary>Riwayat dan privasi</summary>
+      <div>
+        <label class="chk"><input type="checkbox" id="histOptIn"> Simpan riwayat teks di perangkat ini (bawaan: mati)</label>
+        <p class="note">Hanya teks yang disimpan, tidak pernah audio. <span id="histCount">Belum ada riwayat tersimpan.</span></p>
+        <div class="sheetbtns">
+          <button class="sm" id="btnExpSession">Ekspor transkrip sesi ini</button>
+          <button class="sm" id="btnExpAll">Ekspor semua riwayat tersimpan</button>
+          <button class="sm danger" id="btnDelSession">Hapus sesi ini</button>
+          <button class="sm danger" id="btnDelHist">Hapus riwayat tersimpan</button>
+        </div>
+        <details style="margin-top:12px">
+          <summary>Informasi AI pihak ketiga</summary>
+          <div class="note" style="line-height:1.6">
+            <b>Mode dengan kode akses:</b> ucapan dikirim lewat server VocalBridge ke OpenAI untuk diubah menjadi teks, diterjemahkan, dan dibacakan. VocalBridge tidak menyimpan audio. Kebijakan OpenAI berlaku untuk data yang diterimanya.<br>
+            <b>Mode Gratis:</b> pengenal suara bawaan Chrome mengirim audio ke Google. Teks yang diterjemahkan dikirim ke layanan MyMemory.<br>
+            <b>Suara AI:</b> suara terjemahan dibuat oleh AI, bukan suara manusia.<br>
+            <b>Lawan bicara:</b> beri tahu bahwa Anda memakai penerjemah AI dan ikuti aturan platform (Zoom, Google Meet, Upwork).<br>
+            <b>Ketepatan:</b> terjemahan mesin bisa salah. Periksa angka, nama, dan tanggal penting secara tertulis.
+          </div>
+        </details>
+        <div class="sheetbtns"><button class="sm" id="btnReviewConsent">Tinjau persetujuan</button></div>
+      </div>
+    </details>
+
+    <details>
+      <summary>Alat uji (QA Lab)</summary>
+      <div>
+        <p class="note">Uji dialog, nilai ✓/✗, dan ekspor laporan untuk penguji. Terpisah dari tampilan percakapan.</p>
+        <div class="sheetbtns"><button class="pri" id="btnOpenLab">Buka QA Lab</button></div>
       </div>
     </details>
   </div>
 </div>
+
+<div class="vb-modal" id="vbConsent" role="dialog" aria-modal="true" aria-labelledby="vbConsentTitle">
+  <div class="box">
+    <h2 id="vbConsentTitle">Sebelum mulai</h2>
+    <ul>
+      <li>Mikrofon (dan audio tab bila Anda memilihnya) dipakai hanya selama sesi berjalan. Tombol Hentikan melepasnya.</li>
+      <li><b>Dengan kode akses:</b> ucapan dikirim lewat server VocalBridge ke OpenAI untuk jadi teks, terjemahan, dan suara. VocalBridge tidak menyimpan audio. Kebijakan OpenAI berlaku untuk data yang diterimanya.</li>
+      <li><b>Mode Gratis:</b> pengenal suara Chrome mengirim audio ke Google, dan teks terjemahan dikirim ke MyMemory.</li>
+      <li>Suara terjemahan dari OpenAI dibuat oleh AI, bukan suara manusia.</li>
+      <li>Riwayat teks tersimpan di perangkat hanya bila Anda menyalakannya. Audio tidak pernah disimpan.</li>
+      <li>Anda yang memberi tahu lawan bicara dan memastikan penggunaan sesuai aturan platform (Zoom, Meet, Upwork).</li>
+      <li>Terjemahan mesin bisa salah. Periksa angka, nama, dan tanggal penting secara tertulis.</li>
+    </ul>
+    <div class="sheetbtns"><button class="pri" id="vbConsentOk">Saya mengerti dan setuju</button><button class="sm" id="vbConsentNo">Batal</button></div>
+  </div>
+</div>
+
 
 <script>
 (function(){
@@ -671,64 +737,100 @@
     return '<div class="diff"><div><span>Dialog / naskah (merah = tidak terucap atau beda)</span>' + ta + '</div><div><span>Yang terdengar (kuning = tambahan atau beda)</span>' + tb + '</div></div>';
   }
 
-  // ================= terjemahan =================
-  async function llm(text, src, tgt, provider){
-    const key = (provider === 'openai' ? $('keyOpenAI') : $('keyClaude')).value.trim();
-    if(!key) throw new Error('isi API key ' + (provider === 'openai' ? 'OpenAI' : 'Claude') + ' di ⚙️ dulu');
-    const model = (provider === 'openai' ? $('modelOpenAI') : $('modelClaude')).value.trim();
-    const from = src === 'id' ? 'Indonesian' : 'English', to = tgt === 'id' ? 'Indonesian' : 'English';
-    const ctx = history.slice(-4).map(h => (h.side === 'me' ? 'Freelancer: ' : 'Client: ') + h.orig).join('\n');
-    const sys = 'You are a live interpreter between a freelancer (Indonesian) and an overseas client (English). ' +
-      'Translate the speaker\'s utterance from ' + from + ' to ' + to + '. ' +
-      'The text comes from speech recognition, so quietly fix obvious recognition slips using context. ' +
-      'Keep the tone natural and conversational, keep proper names (people, places, products) unchanged. ' +
-      'Output ONLY the translation. Never answer questions, never add notes or quotes.' +
-      (ctx ? '\n\nRecent conversation (context only, do NOT translate):\n' + ctx : '');
-    let r, j;
-    if(provider === 'openai'){
-      r = await fetch('https://api.openai.com/v1/chat/completions', {
-        method:'POST', headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer ' + key },
-        body: JSON.stringify({ model, temperature:0.2, messages:[ {role:'system',content:sys}, {role:'user',content:text} ] })
-      });
-      j = await r.json();
-      if(!r.ok) throw new Error((j.error && j.error.message) || ('HTTP ' + r.status));
-      return j.choices[0].message.content.trim();
-    }
-    r = await fetch('https://api.anthropic.com/v1/messages', {
-      method:'POST',
-      headers:{ 'content-type':'application/json', 'x-api-key':key, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
-      body: JSON.stringify({ model, max_tokens:300, temperature:0.2, system:sys, messages:[{role:'user',content:text}] })
-    });
-    j = await r.json();
-    if(!r.ok) throw new Error((j.error && j.error.message) || ('HTTP ' + r.status));
-    return j.content[0].text.trim();
+  // ================= backend VocalBridge (kunci penyedia hanya ada di server) =================
+  // Frontend tidak pernah memegang API key OpenAI, Anthropic, atau ElevenLabs. Ia hanya memanggil
+  // backend lewat HTTPS dengan kode akses uji. Kode akses disimpan di sessionStorage (hilang saat tab ditutup).
+  const LEGACY_KEYS = ['tr_key_openai', 'tr_key_claude', 'tr_elkey']; // kunci dari versi lama: dihapus saat dibuka
+  function purgeLegacyKeys(){
+    let n = 0;
+    LEGACY_KEYS.forEach(k => { try{ if(localStorage.getItem(k) !== null){ localStorage.removeItem(k); n++; } }catch(_){} });
+    return n;
   }
-  async function translate(text, src, tgt){
-    const eng = $('engine').value;
-    if(eng === 'openai' || eng === 'claude'){
-      const out = await llm(text, src, tgt, eng);
-      return { text: out, engine: (eng === 'openai' ? 'OpenAI ' + $('modelOpenAI').value.trim() : 'Claude ' + $('modelClaude').value.trim()) };
+  const VB = {
+    _mem: '', me: null,
+    base(){
+      const v = String(lsGet('vb_api') || (window.VB_CONFIG && window.VB_CONFIG.API_BASE) || '').trim().replace(/\/+$/, '');
+      return /^(https:\/\/[^\s/]+|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?)/.test(v) ? v : '';
+    },
+    token(){ try{ return sessionStorage.getItem('vb_token') || this._mem; }catch(_){ return this._mem; } },
+    setToken(v){ this._mem = v || ''; try{ if(v) sessionStorage.setItem('vb_token', v); else sessionStorage.removeItem('vb_token'); }catch(_){} },
+    ready(){ return !!(this.base() && this.token()); }
+  };
+  function uuid(){ try{ if(crypto && crypto.randomUUID) return crypto.randomUUID(); }catch(_){} return 'k' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12); }
+  function vbError(status, j){
+    const e = new Error((j && j.error) || ('Server menjawab ' + status));
+    e.vb = true; e.status = status; e.code = (j && j.code) || null;
+    if(status === 401) e.message = 'Kode akses salah atau sudah kedaluwarsa.';
+    else if(status === 402) e.message = 'Kredit habis. Minta administrator mengisi ulang.';
+    return e;
+  }
+  // Satu pintu semua panggilan. Permintaan berbayar membawa Idempotency-Key; bila jaringan putus atau
+  // waktu habis, dicoba sekali lagi dengan kunci yang SAMA sehingga kredit tidak terpotong dua kali.
+  async function vbCall(path, o){
+    o = o || {};
+    const method = o.method || 'POST', h = Object.assign({ Authorization: 'Bearer ' + VB.token() }, o.headers || {});
+    let body = o.body;
+    if(method === 'POST') h['Idempotency-Key'] = uuid();
+    if(o.json !== undefined){ h['Content-Type'] = 'application/json'; body = JSON.stringify(o.json); }
+    let last = null;
+    for(let attempt = 0; attempt < 2; attempt++){
+      const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 25000);
+      try{
+        const r = await fetch(VB.base() + path, { method, headers: h, body, signal: ctl.signal });
+        clearTimeout(to);
+        if(r.ok) return r;
+        let j = {}; try{ j = await r.json(); }catch(_){}
+        throw vbError(r.status, j);
+      }catch(e){
+        clearTimeout(to);
+        if(e && e.vb) throw e;
+        last = e;
+      }
     }
+    const err = new Error('Server tidak terjangkau. Periksa internet dan alamat server.'); err.vb = true; err.status = 0; err.cause = last;
+    throw err;
+  }
+  function noteCredits(r){
+    const c = r && r.headers && r.headers.get('X-Credits-Left');
+    if(c != null && VB.me){ VB.me.credits = +c; renderPlan(); }
+  }
+  async function vbRefresh(){
+    if(!VB.ready()){ VB.me = null; renderPlan(); return null; }
+    const r = await vbCall('/api/me', { method: 'GET' });
+    VB.me = await r.json(); renderPlan(); return VB.me;
+  }
+  function renderPlan(){
+    const b = $('planBadge'); if(!b) return;
+    if(VB.ready() && VB.me){ b.textContent = 'Uji · ' + VB.me.credits + ' kredit'; b.classList.remove('free'); }
+    else if(VB.ready()){ b.textContent = 'Uji'; b.classList.remove('free'); }
+    else { b.textContent = 'Gratis'; b.classList.add('free'); }
+  }
+  const sttEngineNow = () => VB.ready() ? 'backend' : 'browser';
+
+  // ================= terjemahan =================
+  async function translateFree(text, src, tgt){
     const r = await fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(text) + '&langpair=' + src + '|' + tgt);
     if(!r.ok) throw new Error('HTTP ' + r.status);
     const j = await r.json();
     if(j.responseStatus && Number(j.responseStatus) !== 200) throw new Error(j.responseDetails || 'gagal');
-    return { text: decode(j.responseData.translatedText), engine:'MyMemory' };
+    return { text: decode(j.responseData.translatedText), engine:'MyMemory (gratis)' };
+  }
+  async function translate(text, src, tgt){
+    if(VB.ready()){
+      const context = history.slice(-4).map(h => ({ side: h.side, text: h.orig }));
+      const r = await vbCall('/api/translate', { json: { text, src, tgt, context } });
+      const j = await r.json(); noteCredits(r);
+      return { text: j.text, engine: j.engine || 'OpenAI (backend)' };
+    }
+    return translateFree(text, src, tgt);
   }
 
-  // ================= pengenal suara via OpenAI =================
+  // ================= pengenal suara =================
   const HALLU = /(thanks for watching|thank you for watching|terima kasih (telah|sudah) menonton|subtitles? by|amara\.org)/i;
-  async function sttOpenAI(samples, rate, lang){
-    const key = $('keyOpenAI').value.trim();
-    if(!key) throw new Error('isi API key OpenAI di ⚙️');
+  async function sttBackend(samples, rate, lang){
     const wav = encodeWav(resample(samples, rate, 16000), 16000);
-    const fd = new FormData();
-    fd.append('file', new Blob([wav], { type:'audio/wav' }), 'ucapan.wav');
-    fd.append('model', $('modelSTT').value.trim() || 'gpt-4o-mini-transcribe');
-    fd.append('language', lang); fd.append('response_format', 'json'); fd.append('temperature', '0');
-    const r = await fetch('https://api.openai.com/v1/audio/transcriptions', { method:'POST', headers:{ 'Authorization':'Bearer ' + key }, body: fd });
-    let j = {}; try{ j = await r.json(); }catch(_){}
-    if(!r.ok) throw new Error((j.error && j.error.message) || ('HTTP ' + r.status));
+    const r = await vbCall('/api/stt?lang=' + lang, { body: new Blob([wav], { type:'audio/wav' }), headers: { 'Content-Type':'audio/wav' } });
+    const j = await r.json(); noteCredits(r);
     return (j.text || '').trim();
   }
 
@@ -809,10 +911,10 @@
   async function transcribeUtterance(samples, rate, lang, info, side){
     const t0 = performance.now();
     try{
-      const text = await sttOpenAI(samples, rate, lang);
+      const text = await sttBackend(samples, rate, lang);
       const ms = Math.round(performance.now() - t0);
       if(!text || HALLU.test(text)){ if(Listen.active) setLive('Mendengarkan… (' + cfg[side].label + ')'); return; }
-      deliver(side, text, { stt:'openai:' + ($('modelSTT').value.trim() || 'gpt-4o-mini-transcribe'), stt_ms: ms, mic: micInfo(info) });
+      deliver(side, text, { stt:'backend', stt_ms: ms, mic: micInfo(info) });
     }catch(e){
       toast('Gagal mengenali suara: ' + e.message);
       if(Listen.active) setLive('Gagal mengenali suara. Coba lagi.');
@@ -821,19 +923,15 @@
   async function startListening(side, onText, once, ui){
     stopListening();
     unlockAudio();
-    const eng = $('sttEngine').value;
-    if(eng === 'openai' && !$('keyOpenAI').value.trim()){
-      setLive('Isi API key OpenAI di ⚙️ dulu, atau ganti pengenal suara ke "Browser".');
-      toast('Isi API key OpenAI di ⚙️ dulu'); openSheet(); return false;
-    }
-    if(eng === 'openai' && !hasMic){ setLive('Browser ini tidak mendukung mikrofon.'); return false; }
-    if(eng === 'browser' && !SR){ setLive('Browser ini tidak punya pengenal suara bawaan. Ganti ke OpenAI di ⚙️.'); toast('Ganti pengenal suara ke OpenAI di ⚙️'); return false; }
+    const eng = sttEngineNow();
+    if(eng === 'backend' && !hasMic){ setLive('Browser ini tidak mendukung mikrofon.'); return false; }
+    if(eng === 'browser' && !SR){ setLive('Browser ini tidak punya pengenal suara bawaan. Isi kode akses di Pengaturan atau pakai Chrome.'); toast('Pakai Chrome atau isi kode akses di Pengaturan'); return false; }
     Object.assign(Listen, { active:true, side, once:!!once, onText, ui: ui || 'talk', engine: eng });
     try{
       if(eng === 'browser'){ Listen.rec = buildRec(side); Listen.rec.start(); }
       else { await startVAD(side); }
     }catch(e){ Listen.active = false; micError(e); refreshButtons(); return false; }
-    if(Listen.ui === 'talk') $('meterTalkBox').style.display = eng === 'openai' ? 'block' : 'none';
+    if(Listen.ui === 'talk') $('meterTalkBox').style.display = eng === 'backend' ? 'block' : 'none';
     if(Listen.once){
       Listen.timeout = setTimeout(() => {
         if(Listen.active){ const cb = Listen.onText, s = Listen.side; stopListening(); cb(s, null, { timeout:true }); }
@@ -858,14 +956,11 @@
   function startTimer(){ if(!timer){ timer = setInterval(() => { secs++; $('timer').textContent = fmt(secs); }, 1000); } }
   function stopTimer(){ if(timer && !Listen.active){ clearInterval(timer); timer = null; } }
   function refreshButtons(){
-    const on = Listen.active && Listen.ui === 'talk';
-    $('btnMe').classList.toggle('on', on && Listen.side === 'me');
-    $('btnThem').classList.toggle('on', on && Listen.side === 'them');
     const t = Listen.active && Listen.ui === 'test';
     $('btnRec').textContent = t ? '⏹ Berhenti' : '🎤 Rekam kalimat ini';
   }
 
-  // ================= suara klon + suara bawaan =================
+  // ================= suara perangkat dan suara AI =================
   function speak(text, lang){
     return new Promise(res => {
       if(!('speechSynthesis' in window)) return res();
@@ -882,61 +977,32 @@
       speechSynthesis.speak(u);
     });
   }
-  let elChars = 0;
-  const elKey = () => $('elkey').value.trim();
-  const elReady = () => $('useEL').checked && elKey() && $('voiceId').value.trim();
-  function updEl(){
-    $('elChars').textContent = elChars.toLocaleString('id-ID');
-    $('elCost').textContent = '$' + (elChars / 1000 * 0.05).toFixed(2);
-    $('elKeyState').textContent = elKey() ? 'terisi ✓' : 'belum diisi';
+  // ================= suara terjemahan: OpenAI lewat backend, atau suara perangkat =================
+  async function ttsBackend(text, lang){
+    const r = await vbCall('/api/tts', { json: { text, lang } });
+    noteCredits(r);
+    return await r.blob();
   }
-  async function elErr(r){
-    let m = 'HTTP ' + r.status;
-    try{ const j = await r.json(); const d = j.detail; if(d) m = (typeof d === 'string') ? d : (d.message || JSON.stringify(d)); }catch(_){}
-    return new Error(m);
-  }
-  async function elSpeak(text){
-    const sync = sub.words.length > 0 && sub.text === text;
-    const url = 'https://api.elevenlabs.io/v1/text-to-speech/' + encodeURIComponent($('voiceId').value.trim()) + (sync ? '/with-timestamps' : '') + '?output_format=mp3_44100_128';
-    const r = await fetch(url, {
-      method:'POST', headers:{ 'xi-api-key': elKey(), 'Content-Type':'application/json' },
-      body: JSON.stringify({ text, model_id: $('elModel').value.trim() || 'eleven_flash_v2_5' })
+  function playBlob(blob){
+    return new Promise(res => {
+      const u = URL.createObjectURL(blob); let done = false;
+      const fin = () => { if(done) return; done = true; player.onended = player.onerror = player.onpause = null; URL.revokeObjectURL(u); res(); };
+      player.src = u; player.playbackRate = 1;
+      player.onended = player.onerror = player.onpause = fin;
+      const p = player.play(); if(p && p.catch) p.catch(fin);
     });
-    if(!r.ok) throw await elErr(r);
-    let blob, starts = null;
-    if(sync){
-      const j = await r.json();
-      const bin = atob(j.audio_base64), bytes = new Uint8Array(bin.length);
-      for(let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      blob = new Blob([bytes], { type:'audio/mpeg' });
-      const st = j.alignment && j.alignment.character_start_times_seconds;
-      if(st && st.length) starts = sub.words.map(w => st[Math.min(w.start, st.length - 1)]);
-    } else blob = await r.blob();
-    elChars += text.length; updEl();
-    const u = URL.createObjectURL(blob);
-    player.src = u; player.playbackRate = parseFloat($('rate').value);
-    let raf = 0;
-    const tick = () => { if(starts) subSet(wordAt(starts, player.currentTime)); if(!player.ended && !player.paused) raf = requestAnimationFrame(tick); };
-    await new Promise(res => {
-      player.onplay = () => {
-        if(starts) raf = requestAnimationFrame(tick);
-        else if(sync) subEstimate(Math.max(0.8, ((isFinite(player.duration) && player.duration) || text.length / 14) / player.playbackRate));
-      };
-      player.onended = player.onerror = res;
-      const p = player.play(); if(p && p.catch) p.catch(res);
-    });
-    cancelAnimationFrame(raf);
-    if(sync) subDone();
-    URL.revokeObjectURL(u);
   }
+  const BCP = { id:'id-ID', en:'en-US' };
   async function speakSmart(text, lang, side){
-    if(side === 'me' && elReady()){
-      try{ await elSpeak(text); $('voiceStatus').textContent = ''; return 'klon ElevenLabs'; }
-      catch(e){ $('voiceStatus').textContent = '⚠ ElevenLabs gagal: ' + e.message + ' (dipakai suara HP)'; toast('ElevenLabs gagal, dipakai suara HP'); }
+    const l2 = String(lang).slice(0, 2);
+    if(VB.ready()){
+      try{ await playBlob(await ttsBackend(text, l2)); return 'OpenAI (backend)'; }
+      catch(e){ toast('Suara AI gagal, dipakai suara perangkat: ' + e.message); }
     }
-    await speak(text, lang);
-    return 'suara HP';
+    await speak(text, BCP[l2] || lang);
+    return 'suara perangkat';
   }
+
   function ttsFlags(){ const m = $('mode').value; return { me: m !== 'text', them: m === 'headset' }; }
 
   // ================= log, ulasan, laporan =================
@@ -1024,7 +1090,7 @@
     const e = findLog(i.dataset.id); if(!e) return;
     e.note = i.value; saveLog();
   }
-  ['hist','testList','scriptResult'].forEach(id => { $(id).addEventListener('click', onReviewClick); $(id).addEventListener('change', onNoteChange); });
+  ['testList','scriptResult'].forEach(id => { $(id).addEventListener('click', onReviewClick); $(id).addEventListener('change', onNoteChange); });
 
   function csvCell(v){ const s = String(v == null ? '' : v); return /[",\n\r;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
   function buildCsv(L){
@@ -1042,7 +1108,7 @@
     out.push('LAPORAN UJI PENERJEMAH SUARA');
     out.push('Dibuat: ' + new Date().toLocaleString('id-ID'));
     out.push('Perangkat: ' + UA);
-    out.push('Pengenal suara: ' + $('sttEngine').value + ' | Terjemahan: ' + $('engine').value + ' | Mode: ' + $('mode').value);
+    out.push('Pengenal suara: ' + sttEngineNow() + ' | Terjemahan: ' + (VB.ready() ? 'backend (OpenAI)' : 'MyMemory') + ' | Mode: ' + $('mode').value);
     out.push('Jumlah kalimat: ' + L.length + (acc.length ? ' | Ketepatan ucapan rata-rata (naskah): ' + Math.round(mean(acc)) + '%' : ''));
     out.push('');
     L.forEach((e, i) => {
@@ -1098,7 +1164,7 @@
   };
   $('expClear').onclick = () => {
     if(!confirm('Hapus semua catatan uji di HP ini? Pastikan sudah diunduh.')) return;
-    LOG = []; saveLog(); $('hist').textContent = ''; renderSummary(); renderTestList(); $('scriptResult').textContent = '';
+    LOG = []; saveLog(); renderSummary(); renderTestList(); $('scriptResult').textContent = '';
     toast('Catatan dihapus');
   };
 
@@ -1107,7 +1173,7 @@
   async function handle(side, text, meta, opts){
     meta = meta || {}; opts = opts || {};
     text = (text || '').trim(); if(!text) return null;
-    const ui = opts.ui || 'talk';
+    const ui = opts.ui || 'test'; // handle() kini hanya dipakai QA Lab; percakapan memakai completeTurn()
     if(ui === 'talk'){
       const k = side + '|' + text, now = Date.now();
       if(lastDedupe.k === k && now - lastDedupe.t < 4000) return null;
@@ -1153,25 +1219,437 @@
   let chain = Promise.resolve();
   function queueTalk(side, text, meta){ chain = chain.then(() => handle(side, text, meta, { ui:'talk' })).catch(() => {}); }
 
-  // ================= tab Bicara =================
-  function toggleSide(side){
-    if(Listen.active && Listen.ui === 'talk' && Listen.side === side){ stopListening(); setLive('Berhenti.'); return; }
-    startListening(side, queueTalk, false, 'talk').then(ok => { if(ok) setLive($('sttEngine').value === 'openai' ? 'Menyesuaikan suara latar…' : 'Mendengarkan… (' + cfg[side].label + ')'); });
+  // ================= percakapan satu tombol (VocalBridge V1) =================
+  // Alur: sesi dimulai -> lawan didengarkan otomatis -> "Saya Bicara" menjeda lawan, merekam suara Indonesia,
+  // menerjemahkan ke Inggris, memutar suara -> kembali mendengarkan lawan. Hanya satu proses STT berjalan pada satu waktu.
+  const I_PLAY = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
+  const I_COPY = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
+  const I_EDIT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l4-1 10-10-3-3L5 16z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+  const WAVE = '<svg class="vb-wave" viewBox="0 0 28 20" aria-hidden="true"><g stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="3" y1="8" x2="3" y2="12"/><line x1="8" y1="5" x2="8" y2="15"/><line x1="13" y1="2" x2="13" y2="18"/><line x1="18" y1="5" x2="18" y2="15"/><line x1="23" y1="8" x2="23" y2="12"/></g></svg>';
+
+  // ---- tap audio dan deteksi ucapan (VAD adaptif) ----
+  class StreamTap {
+    constructor(stream, onFrame){ this.stream = stream; this.onFrame = onFrame; this.stopped = false; }
+    async start(){
+      const AC = window.AudioContext || window.webkitAudioContext;
+      this.ctx = new AC();
+      if(this.ctx.state === 'suspended') await this.ctx.resume();
+      this.rate = this.ctx.sampleRate;
+      this.src = this.ctx.createMediaStreamSource(this.stream);
+      this.proc = this.ctx.createScriptProcessor(2048, 1, 1);
+      const mute = this.ctx.createGain(); mute.gain.value = 0;
+      this.src.connect(this.proc); this.proc.connect(mute); mute.connect(this.ctx.destination);
+      this.proc.onaudioprocess = e => { if(!this.stopped) this.onFrame(new Float32Array(e.inputBuffer.getChannelData(0)), this.rate); };
+    }
+    stop(){
+      this.stopped = true;
+      try{ this.proc.onaudioprocess = null; this.proc.disconnect(); this.src.disconnect(); }catch(_){}
+      try{ this.ctx && this.ctx.close(); }catch(_){}
+    }
   }
-  $('btnMe').onclick = () => toggleSide('me');
-  $('btnThem').onclick = () => toggleSide('them');
-  $('btnType').onclick = () => { unlockAudio(); $('typeRow').classList.toggle('open'); if($('typeRow').classList.contains('open')) $('typed').focus(); };
-  function sendTyped(){
+  class VAD {
+    constructor(o){ this.o = o; this.rate = 48000; this.reset(true); }
+    reset(full){
+      this.state = 'idle'; this.pre = []; this.buf = []; this.silentMs = 0; this.speechMs = 0; this.onCount = 0;
+      if(full){ this.floor = null; this.calibMs = 0; this.calibSum = 0; this.calibN = 0; }
+    }
+    inSpeech(){ return this.state === 'speech'; }
+    feed(x, rate){
+      const rms = rmsPeak(x).rms, dur = x.length / rate * 1000; this.rate = rate;
+      if(this.floor === null){ this.calibMs += dur; this.calibSum += rms; this.calibN++; if(this.calibMs >= 500) this.floor = this.calibSum / this.calibN; return rms; }
+      const sens = parseFloat($('sens').value) || 1;
+      const thrOn = Math.max(0.012, this.floor * 3.5) / sens, thrOff = Math.max(0.007, this.floor * 2) / sens;
+      if(!this.o.gate()){ if(this.state !== 'idle') this.reset(); if(rms < thrOn) this.floor = this.floor * 0.97 + rms * 0.03; return rms; }
+      if(this.state === 'idle'){
+        this.pre.push(x); if(this.pre.length > 8) this.pre.shift();
+        if(rms > thrOn) this.onCount++; else { this.onCount = 0; this.floor = this.floor * 0.97 + rms * 0.03; }
+        if(this.onCount >= 2){ this.state = 'speech'; this.buf = this.pre.slice(); this.pre = []; this.silentMs = 0; this.speechMs = 0; }
+      } else {
+        this.buf.push(x); this.speechMs += dur;
+        if(rms < thrOff) this.silentMs += dur; else this.silentMs = 0;
+        if(this.silentMs >= (this.o.endMs || 900) || this.speechMs > 24000) this._finish();
+      }
+      return rms;
+    }
+    _finish(){
+      const chunks = this.buf, rate = this.rate, silent = this.silentMs; this.reset();
+      const total = chunks.reduce((n, c) => n + c.length, 0) / rate * 1000;
+      if(total - silent < 350) return false;
+      this.o.onSpeech(concatF32(chunks), rate, analyzeFrames(chunks, rate)); return true;
+    }
+    flush(){ if(this.state !== 'speech'){ this.reset(); return false; } return this._finish(); }
+  }
+
+  // ---- keadaan sesi ----
+  const CONV = [];                // giliran sesi ini: hanya teks, tidak pernah audio
+  const CARDS = new Map();        // id -> pengendali kartu
+  const Conv = { on:false, state:'idle', free:false, src:'mic', micStream:null, tabStream:null, taps:[], vadThem:null, vadMe:null,
+    chain: Promise.resolve(), gen:0, cool:0, tabSeen:0, tabOk:false, meTimer:null };
+  const Sess = { id: uuid(), start: new Date().toISOString() };
+  const hhmm = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return p(d.getHours()) + ':' + p(d.getMinutes()); };
+  const canTab = () => !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) && !IS_MOBILE;
+  function enqueue(job){ Conv.chain = Conv.chain.then(job).catch(e => { try{ toast('Terjadi kesalahan: ' + (e && e.message)); }catch(_){} }); }
+
+  function stateText(s){
+    const talkHint = 'Ketuk untuk mulai berbicara (dalam Bahasa Indonesia)';
+    if(s === 'listen'){
+      if(Conv.src === 'tab' && !Conv.free && !Conv.tabOk)
+        return { title:'Menunggu audio dari tab…', sub:'Belum ada suara terdeteksi dari tab yang dibagikan. Putar audio atau tunggu lawan bicara.', mode:'Mode: English → Indonesia', label:'Saya Bicara', hint: talkHint };
+      return { title: Conv.src === 'tab' && !Conv.free ? 'Audio tab terverifikasi' : 'Mikrofon aktif',
+        sub: Conv.src === 'tab' && !Conv.free ? 'Mendengarkan lawan bicara secara otomatis' : 'Mendengarkan lawan lewat mikrofon (Inggris)',
+        mode:'Mode: English → Indonesia', label:'Saya Bicara', hint: talkHint };
+    }
+    if(s === 'me') return { title:'Mikrofon Anda aktif', sub:'Pengenalan suara lawan dijeda. Bicaralah dalam Bahasa Indonesia.', mode:'Mode: Indonesia → English', label:'Selesai Bicara', hint:'Ketuk lagi, atau diam 1 detik untuk selesai' };
+    if(s === 'proc') return { title:'Memproses ucapan Anda', sub:'Transkripsi, terjemahan, lalu suara Inggris', mode:'Mode: Indonesia → English', label:'Memproses…', hint:'Mohon tunggu sebentar' };
+    if(s === 'out') return { title:'Memutar terjemahan Inggris', sub:'Lawan didengarkan lagi setelah selesai', mode:'Mode: Indonesia → English', label:'Memutar…', hint:'Ketuk untuk melewati suara' };
+    return { title:'Belum ada sesi', sub:'Pilih sumber audio lalu mulai sesi.', mode:'', label:'Saya Bicara', hint:'Ketuk untuk mulai sesi dan izinkan mikrofon' };
+  }
+  function setState(s){
+    Conv.state = s;
+    const T = stateText(s);
+    $('vbStatus').dataset.s = (s === 'listen' && Conv.src === 'tab' && !Conv.free && !Conv.tabOk) ? 'wait' : s;
+    $('vbTitle').textContent = T.title; setLive(T.sub); $('vbMode').textContent = T.mode;
+    const m = $('vbMic'); m.dataset.s = s; m.disabled = (s === 'proc');
+    $('vbMicLabel').textContent = T.label; $('vbMicHint').textContent = T.hint;
+    $('vbStop').disabled = !Conv.on; $('vbSetup').hidden = Conv.on;
+    $('planBadge').title = Conv.on ? (Conv.free ? 'Mode Gratis' : 'Mode Uji (backend)') : '';
+  }
+
+  // ---- petunjuk kualitas suara ----
+  let hintT = null;
+  function showHint(msg){
+    const h = $('vbHint'); clearTimeout(hintT);
+    if(!msg){ h.hidden = true; return; }
+    h.textContent = msg; h.hidden = false; hintT = setTimeout(() => { h.hidden = true; }, 9000);
+  }
+  function qualityHint(info){
+    if(!info) return;
+    const m = [];
+    if(info.speechDb < -45) m.push('Suara terlalu pelan. Dekatkan mikrofon atau naikkan kepekaan di Pengaturan.');
+    if(info.clipPct > 1) m.push('Suara terlalu keras dan terpotong. Jauhkan mikrofon.');
+    if(info.snr < 8 && info.speechDb >= -45) m.push('Ruangan bising. Pakai earphone bermikrofon.');
+    if(m.length) showHint(m.join(' '));
+  }
+  const micLine = info => info ? 'mik ' + Math.round(info.speechDb) + ' dB · SNR ' + Math.round(info.snr) + ' dB' : '';
+
+  // ---- kartu percakapan: empat teks per pasangan giliran ----
+  function cardHtml(side){
+    const them = side === 'them';
+    return '<div class="vb-turn-head">' + WAVE + '<b>' + (them ? 'Lawan bicara' : 'Saya') + '</b><span class="vb-dir">' + (them ? 'English → Indonesia' : 'Indonesia → English') + '</span><span class="vb-chip" data-k="chip"></span><time>' + hhmm() + '</time></div>' +
+      '<div class="vb-pair">' +
+      '<div class="vb-box"><small>Teks asli · ' + (them ? 'English' : 'Indonesia') + '</small><p data-k="orig" class="dim">…</p><div class="vb-act"><button type="button" data-a="edit" aria-label="Koreksi teks asli" disabled>' + I_EDIT + '</button><button type="button" data-a="copy-orig" aria-label="Salin teks asli" disabled>' + I_COPY + '</button></div></div>' +
+      '<div class="vb-box tr"><small>Terjemahan · ' + (them ? 'Indonesia' : 'English') + '</small><p data-k="tr" class="dim">…</p><div class="vb-act"><button type="button" data-a="play" aria-label="Putar ulang terjemahan" disabled>' + I_PLAY + '</button><button type="button" data-a="copy-tr" aria-label="Salin terjemahan" disabled>' + I_COPY + '</button></div></div>' +
+      '</div><div class="vb-meta" data-k="meta"></div>';
+  }
+  function newCard(side){
+    const el = document.createElement('article'); el.className = 'vb-turn ' + side; el.innerHTML = cardHtml(side);
+    const rec = { id: uuid(), side, t: new Date().toISOString(), heard:'', translation:'', corrected:false, audio:null, engine:'' };
+    el.dataset.id = rec.id; CONV.push(rec);
+    $('convEmpty').hidden = true; $('convList').appendChild(el); $('convList').scrollTop = $('convList').scrollHeight;
+    const q = k => el.querySelector('[data-k="' + k + '"]');
+    const enable = (a, on) => { const b = el.querySelector('[data-a="' + a + '"]'); if(b) b.disabled = !on; };
+    const K = {
+      rec, el,
+      status(msg, bad){ const c = q('chip'); c.textContent = msg || ''; c.classList.toggle('bad', !!bad); },
+      fail(msg){ K.status(msg, true); },
+      meta(t){ q('meta').textContent = t || ''; },
+      setOrig(t){ rec.heard = t; const p = q('orig'); p.textContent = t; p.classList.remove('dim'); enable('edit', true); enable('copy-orig', true); },
+      setTr(t){ rec.translation = t; const p = q('tr'); p.textContent = t; p.classList.remove('dim'); enable('play', true); enable('copy-tr', true); },
+      remove(){ el.remove(); CARDS.delete(rec.id); const i = CONV.indexOf(rec); if(i >= 0) CONV.splice(i, 1); if(!CONV.length) $('convEmpty').hidden = false; }
+    };
+    CARDS.set(rec.id, K);
+    return K;
+  }
+
+  // ---- riwayat teks (opt-in) ----
+  const HKEY = 'vb_history';
+  const histOn = () => lsGet('vb_hist_optin') === '1';
+  function histRead(){ try{ const a = JSON.parse(lsGet(HKEY) || '[]'); return Array.isArray(a) ? a : []; }catch(_){ return []; } }
+  const sessObj = () => ({ id: Sess.id, start: Sess.start, items: CONV.map(r => ({ side: r.side, t: r.t, heard: r.heard, translation: r.translation, corrected: r.corrected })) });
+  function histInfo(){
+    const a = histRead(), n = a.reduce((s, x) => s + x.items.length, 0);
+    $('histCount').textContent = a.length ? a.length + ' sesi tersimpan (' + n + ' kalimat).' : 'Belum ada riwayat tersimpan.';
+  }
+  function histSave(){
+    if(!histOn()) return;
+    const all = histRead().filter(s => s.id !== Sess.id);
+    if(CONV.length) all.push(sessObj());
+    lsSet(HKEY, JSON.stringify(all.slice(-30))); histInfo();
+  }
+  function transcriptText(sessions){
+    const out = ['TRANSKRIP VOCALBRIDGE', 'Dibuat: ' + new Date().toLocaleString('id-ID'), 'Catatan: terjemahan mesin. Periksa angka, nama, dan tanggal penting secara tertulis.', ''];
+    sessions.forEach(s => {
+      out.push('== Sesi ' + new Date(s.start).toLocaleString('id-ID') + ' ==');
+      s.items.forEach((e, i) => {
+        const me = e.side === 'me';
+        out.push('[' + String(i + 1).padStart(2, '0') + '] ' + (me ? 'Saya (Indonesia)' : 'Lawan (English)') + ': ' + e.heard);
+        out.push('     → ' + (me ? 'English' : 'Indonesia') + ': ' + (e.translation || '(gagal)') + (e.corrected ? '  [dikoreksi]' : ''));
+      });
+      out.push('');
+    });
+    return out.join('\n');
+  }
+  function clearSession(){
+    CARDS.forEach(K => K.el.remove()); CARDS.clear(); CONV.length = 0; history.length = 0;
+    $('convEmpty').hidden = false; histSave(); Sess.id = uuid(); Sess.start = new Date().toISOString();
+  }
+
+  // ---- aksi kartu ----
+  async function copyText(t){
+    try{ await navigator.clipboard.writeText(t); toast('Tersalin'); }
+    catch(_){
+      const ta = document.createElement('textarea'); ta.value = t; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select();
+      try{ document.execCommand('copy'); toast('Tersalin'); }catch(__){ toast('Tidak bisa menyalin'); }
+      ta.remove();
+    }
+  }
+  async function retranslate(K, text){
+    const c = cfg[K.rec.side];
+    K.setOrig(text); K.status('Menerjemahkan ulang…');
+    try{
+      const r = await translate(text, c.src, c.tgt);
+      K.setTr(r.text); K.rec.corrected = true; K.rec.audio = null; K.rec.engine = r.engine; K.status('Dikoreksi');
+      const h = history.find(x => x.id === K.rec.id); if(h){ h.orig = text; h.tr = r.text; }
+      histSave();
+    }catch(e){ K.fail('Gagal menerjemahkan: ' + e.message); }
+  }
+  function openEditor(K){
+    const box = K.el.querySelector('[data-k="orig"]').parentElement; if(box.querySelector('.vb-edit')) return;
+    const w = document.createElement('div'); w.className = 'vb-edit';
+    const ta = document.createElement('textarea'); ta.value = K.rec.heard; ta.setAttribute('aria-label', 'Teks asli yang dikoreksi');
+    const row = document.createElement('div'); row.className = 'row';
+    const ok = document.createElement('button'); ok.type = 'button'; ok.className = 'pri'; ok.textContent = 'Terjemahkan ulang';
+    const no = document.createElement('button'); no.type = 'button'; no.className = 'sm'; no.textContent = 'Batal';
+    row.append(ok, no); w.append(ta, row); box.appendChild(w); ta.focus();
+    no.onclick = () => w.remove();
+    ok.onclick = () => { const t = ta.value.trim(); if(!t) return; w.remove(); retranslate(K, t); };
+  }
+  async function replay(K){
+    const rec = K.rec; if(!rec.translation || speaking || Conv.state === 'out') return;
+    const lang = rec.side === 'me' ? 'en' : 'id';
+    speaking = true; K.status('Memutar…');
+    try{
+      if(VB.ready()){
+        if(!rec.audio){ K.status('Menyiapkan suara…'); rec.audio = await ttsBackend(rec.translation, lang); K.status('Memutar…'); }
+        await playBlob(rec.audio);
+      } else await withTimeout(speak(rec.translation, BCP[lang]), speakLimit(rec.translation));
+      K.status('');
+    }catch(e){ K.fail('Suara gagal: ' + e.message); }
+    speaking = false; Conv.cool = Date.now() + 700;
+  }
+  $('convList').addEventListener('click', ev => {
+    const b = ev.target.closest('button[data-a]'); if(!b || b.disabled) return;
+    const art = b.closest('article'), K = art && CARDS.get(art.dataset.id); if(!K) return;
+    const a = b.dataset.a;
+    if(a === 'copy-orig') copyText(K.rec.heard); else if(a === 'copy-tr') copyText(K.rec.translation);
+    else if(a === 'edit') openEditor(K); else if(a === 'play') replay(K);
+  });
+
+  // ---- memproses satu giliran ----
+  // Suara perangkat kadang tidak pernah memicu onend (bug Chrome Android): jangan biarkan sesi macet.
+  const withTimeout = (p, ms) => Promise.race([p, new Promise(res => setTimeout(res, ms))]);
+  const speakLimit = text => Math.max(6000, text.length * 120 + 4000);
+  async function speakFor(K, side, text, lang){
+    speaking = true; if(side === 'me') setState('out');
+    try{
+      if(VB.ready()){ const b = await ttsBackend(text, lang); K.rec.audio = b; await playBlob(b); }
+      else await withTimeout(speak(text, BCP[lang]), speakLimit(text));
+    }catch(e){ K.fail('Suara gagal: ' + e.message); }
+    speaking = false; Conv.cool = Date.now() + 700;
+  }
+  async function completeTurn(K, side, text, gen){
+    const c = cfg[side];
+    K.setOrig(text); K.status('Menerjemahkan…');
+    let r;
+    try{ r = await translate(text, c.src, c.tgt); }
+    catch(e){ K.fail('Gagal menerjemahkan: ' + e.message + ' (ketuk ✎ untuk coba lagi)'); return false; }
+    history.push({ id: K.rec.id, side, orig: text, tr: r.text });
+    K.setTr(r.text); K.rec.engine = r.engine; K.status(''); histSave();
+    if(gen !== Conv.gen || !Conv.on) return true;
+    if(ttsFlags()[side]) await speakFor(K, side, r.text, c.tgt);
+    return true;
+  }
+  function backToListen(gen){
+    if(!Conv.on || gen !== Conv.gen) return;
+    setState('listen');
+    if(Conv.free) startFreeListen(); else if(Conv.vadThem) Conv.vadThem.reset();
+  }
+  async function runThem(K, samples, rate, info, gen){
+    K.status('Mengenali suara…');
+    let text;
+    try{ text = await sttBackend(samples, rate, 'en'); }
+    catch(e){ K.remove(); showHint('Gagal mengenali suara lawan: ' + e.message); return; }
+    if(!text || HALLU.test(text)){ K.remove(); return; }
+    K.meta(micLine(info));
+    await completeTurn(K, 'them', text, gen);
+  }
+  async function runMe(K, samples, rate, info, gen){
+    K.status('Mengenali suara…');
+    let text;
+    try{ text = await sttBackend(samples, rate, 'id'); }
+    catch(e){ K.remove(); showHint('Gagal mengenali suara Anda: ' + e.message); backToListen(gen); return; }
+    if(!text || HALLU.test(text)){ K.remove(); showHint('Ucapan tidak terdengar jelas. Ketuk Saya Bicara dan coba lagi.'); backToListen(gen); return; }
+    K.meta(micLine(info));
+    await completeTurn(K, 'me', text, gen);
+    backToListen(gen);
+  }
+  function onThem(samples, rate, info){
+    if(Conv.state !== 'listen') return;               // lawan dijeda saat Saya Bicara
+    qualityHint(info);
+    const K = newCard('them'), gen = Conv.gen; K.status('Menunggu…');
+    enqueue(() => runThem(K, samples, rate, info, gen));
+  }
+  function onMeSpeech(samples, rate, info){
+    if(Conv.state !== 'me') return;
+    clearTimeout(Conv.meTimer); qualityHint(info);
+    setState('proc');
+    const K = newCard('me'), gen = Conv.gen; K.status('Menunggu…');
+    enqueue(() => runMe(K, samples, rate, info, gen));
+  }
+
+  // ---- mode Gratis: pengenal suara bawaan browser ----
+  async function startFreeListen(){
+    const ok = await startListening('them', onFreeThem, false, 'conv');
+    if(!ok && Conv.on) endSession('Pengenal suara tidak bisa dimulai. Periksa izin mikrofon atau pakai Chrome.');
+    return ok;
+  }
+  function onFreeThem(side, text){
+    if(!text || Conv.state !== 'listen') return;
+    const K = newCard('them'), gen = Conv.gen;
+    enqueue(() => completeTurn(K, 'them', text, gen));
+  }
+  function onFreeMe(side, text){
+    if(Conv.state !== 'me') return;
+    const gen = Conv.gen;
+    if(text === null){ setState('listen'); setLive('Tidak ada suara terdengar. Ketuk Saya Bicara untuk mencoba lagi.'); startFreeListen(); return; }
+    setState('proc');
+    const K = newCard('me');
+    enqueue(async () => { await completeTurn(K, 'me', text, gen); backToListen(gen); });
+  }
+
+  // ---- tombol utama ----
+  function enterMe(){
+    if(Conv.free){ setState('me'); startListening('me', onFreeMe, true, 'conv'); return; }
+    Conv.vadThem.reset(); Conv.vadMe.reset(); setState('me');
+    clearTimeout(Conv.meTimer);
+    Conv.meTimer = setTimeout(() => { if(Conv.state === 'me' && !Conv.vadMe.inSpeech()) cancelMe('Tidak ada suara terdengar. Ketuk Saya Bicara untuk mencoba lagi.'); }, 15000);
+  }
+  function cancelMe(msg){
+    clearTimeout(Conv.meTimer);
+    if(Conv.free){ stopListening(); } else if(Conv.vadMe) Conv.vadMe.reset();
+    setState('listen'); if(msg) setLive(msg);
+    if(Conv.free) startFreeListen();
+  }
+  function finishMe(){
+    if(Conv.free){ cancelMe('Dibatalkan. Ketuk Saya Bicara untuk mencoba lagi.'); return; }
+    clearTimeout(Conv.meTimer);
+    if(!Conv.vadMe.flush()) cancelMe('Belum ada ucapan terdengar. Ketuk Saya Bicara untuk mencoba lagi.');
+  }
+  function skipSpeech(){ try{ player.pause(); }catch(_){} try{ if('speechSynthesis' in window) speechSynthesis.cancel(); }catch(_){} }
+  function onMainButton(){
+    if(!Conv.on){ startSession(); return; }
+    if(Conv.state === 'listen') enterMe();
+    else if(Conv.state === 'me') finishMe();
+    else if(Conv.state === 'out') skipSpeech();
+  }
+
+  // ---- sesi: mulai dan akhiri ----
+  async function getTabAudio(){
+    const s = await navigator.mediaDevices.getDisplayMedia({ video:true, audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:false } });
+    s.getVideoTracks().forEach(t => { try{ t.stop(); }catch(_){} });
+    if(!s.getAudioTracks().length){
+      s.getTracks().forEach(t => t.stop());
+      const e = new Error('Tidak ada audio yang dibagikan. Pilih tab lalu centang "Bagikan audio tab".'); e.noaudio = true; throw e;
+    }
+    return s;
+  }
+  async function addTap(stream, onFrame){
+    const t = new StreamTap(stream, (x, rate) => { if(Conv.on) onFrame(x, rate); });
+    Conv.taps.push(t); await t.start();
+  }
+  function noteTab(rms){
+    if(rms > 0.004 && ++Conv.tabSeen >= 6 && !Conv.tabOk){ Conv.tabOk = true; if(Conv.state === 'listen') setState('listen'); }
+  }
+  function devInfo(){
+    const t = Conv.micStream && Conv.micStream.getAudioTracks()[0];
+    if(!t){ $('devInfo').textContent = 'Perangkat: belum dipakai.'; return; }
+    const s = t.getSettings ? t.getSettings() : {}, on = v => v ? 'aktif' : 'mati';
+    $('devInfo').textContent = 'Perangkat: ' + (t.label || 'mikrofon') + ' · peredam gema ' + on(s.echoCancellation) + ' · peredam bising ' + on(s.noiseSuppression) + ' · penguat otomatis ' + on(s.autoGainControl) +
+      (Conv.tabStream ? ' · audio tab: ' + (Conv.tabOk ? 'terverifikasi' : 'belum ada suara') : '');
+  }
+  async function watchPermission(){
+    try{
+      const p = await navigator.permissions.query({ name:'microphone' });
+      const names = { granted:'diizinkan', denied:'ditolak', prompt:'belum ditanya' };
+      const upd = () => {
+        $('permState').textContent = names[p.state] || p.state;
+        if(p.state === 'denied' && Conv.on) endSession('Izin mikrofon dicabut. Izinkan lagi lewat pengaturan situs, lalu mulai sesi.');
+      };
+      p.onchange = upd; upd();
+    }catch(_){ $('permState').textContent = 'tidak bisa diperiksa di browser ini'; }
+  }
+  async function startSession(){
+    if(Conv.on) return;
     unlockAudio();
-    const v = $('typed').value; if(!v.trim()) return;
-    $('typed').value = ''; handle($('typeSide').value, v, { typed:true }, { ui:'talk' });
+    if(!(await ensureConsent())) return;
+    Conv.free = !VB.ready();
+    Conv.src = ($('vbSrc').value === 'tab' && canTab()) ? 'tab' : 'mic';
+    if(Conv.free && Conv.src === 'tab'){ toast('Audio tab butuh kode akses backend. Dipakai mikrofon.'); Conv.src = 'mic'; }
+    Conv.gen++; Conv.tabSeen = 0; Conv.tabOk = false; Conv.chain = Promise.resolve();
+    if(Conv.free){
+      if(!SR){ showHint('Browser ini tidak punya pengenal suara bawaan. Pakai Chrome atau isi kode akses di Pengaturan.'); return; }
+      Conv.on = true; setState('listen'); watchPermission();
+      if(!(await startFreeListen())) return;
+      return;
+    }
+    try{
+      if(Conv.src === 'tab'){
+        try{ Conv.tabStream = await getTabAudio(); }
+        catch(e){ showHint((e && e.noaudio) ? e.message : 'Audio tab tidak bisa dibagikan. Dipakai mikrofon.'); Conv.src = 'mic'; Conv.tabStream = null; }
+      }
+      if(!hasMic){ showHint('Browser ini tidak mendukung mikrofon. Android: pakai Chrome. iPhone: pakai Safari.'); throw new Error('nomic'); }
+      Conv.micStream = await navigator.mediaDevices.getUserMedia(micConstraints(micProfile()));
+    }catch(e){
+      [Conv.micStream, Conv.tabStream].forEach(s => s && s.getTracks().forEach(t => t.stop()));
+      Conv.micStream = Conv.tabStream = null;
+      if(e && e.message !== 'nomic') micError(e);
+      return;
+    }
+    Conv.on = true;
+    Conv.vadThem = new VAD({ gate: () => Conv.state === 'listen' && !speaking && Date.now() >= Conv.cool, onSpeech: onThem });
+    Conv.vadMe = new VAD({ gate: () => Conv.state === 'me', onSpeech: onMeSpeech, endMs: 1000 });
+    try{
+      if(Conv.src === 'mic'){
+        await addTap(Conv.micStream, (x, rate) => { const r = Conv.vadThem.feed(x, rate); Conv.vadMe.feed(x, rate); setMeter('meterTalk', r); });
+      } else {
+        await addTap(Conv.tabStream, (x, rate) => { const r = Conv.vadThem.feed(x, rate); if(Conv.state !== 'me') setMeter('meterTalk', r); noteTab(r); });
+        await addTap(Conv.micStream, (x, rate) => { const r = Conv.vadMe.feed(x, rate); if(Conv.state === 'me') setMeter('meterTalk', r); });
+      }
+    }catch(e){ endSession('Audio tidak bisa dimulai: ' + ((e && e.message) || e)); return; }
+    Conv.micStream.getAudioTracks().forEach(t => { t.onended = () => { if(Conv.on) endSession('Mikrofon terputus. Mulai sesi lagi.'); }; });
+    if(Conv.tabStream) Conv.tabStream.getAudioTracks().forEach(t => { t.onended = () => { if(Conv.on) endSession('Berbagi audio tab dihentikan. Mulai sesi lagi.'); }; });
+    setState('listen'); keepAwake(true); startTimer(); refreshDevices(); devInfo(); watchPermission();
   }
-  $('sendTyped').onclick = sendTyped;
-  $('typed').addEventListener('keydown', e => { if(e.key === 'Enter') sendTyped(); });
-  $('btnClear').onclick = () => {
-    $('hist').textContent = ''; $('subBig').textContent = ''; $('subOrig').textContent = ''; $('hint').style.display = '';
-    history.length = 0; sub.words = []; sub.text = '';
-  };
+  function endSession(msg){
+    Conv.gen++; Conv.on = false; clearTimeout(Conv.meTimer);
+    try{ stopListening(); }catch(_){}
+    Conv.taps.forEach(t => t.stop()); Conv.taps = [];
+    [Conv.micStream, Conv.tabStream].forEach(s => { if(s) s.getTracks().forEach(t => { try{ t.onended = null; t.stop(); }catch(_){} }); });
+    Conv.micStream = Conv.tabStream = null; Conv.vadThem = Conv.vadMe = null; Conv.tabSeen = 0; Conv.tabOk = false;
+    skipSpeech(); speaking = false;
+    setMeter('meterTalk', 0); keepAwake(false); stopTimer(); secs = 0; $('timer').textContent = fmt(0);
+    setState('idle'); devInfo(); if(msg) setLive(msg);
+  }
+
+  // ---- persetujuan privasi ----
+  function showConsent(){
+    return new Promise(res => {
+      const m = $('vbConsent'); m.classList.add('open'); $('vbConsentOk').focus();
+      const close = ok => { m.classList.remove('open'); $('vbConsentOk').onclick = $('vbConsentNo').onclick = null; if(ok) lsSet('vb_consent_v1', '1'); res(ok); };
+      $('vbConsentOk').onclick = () => close(true); $('vbConsentNo').onclick = () => close(false);
+    });
+  }
+  const ensureConsent = () => lsGet('vb_consent_v1') === '1' ? Promise.resolve(true) : showConsent();
 
   // ================= tab Uji =================
   const SCRIPTS = {
@@ -1319,8 +1797,7 @@
     toast('Sesi baru dimulai. Isi nama penguji.');
   };
 
-  // ================= tab Suara saya =================
-  $('readText').textContent = 'Selamat pagi semuanya! Hari ini saya ingin bercerita tentang pekerjaan saya sebagai editor video. Setiap proyek dimulai dengan mendengarkan kebutuhan klien: apa pesan yang ingin disampaikan, siapa penontonnya, dan di mana video akan ditayangkan. Setelah itu saya memilih musik, menyusun potongan gambar, lalu menambahkan teks dan warna supaya hasilnya enak ditonton. Kadang prosesnya cepat, kadang butuh waktu lebih lama, terutama kalau ada banyak revisi. Menurut saya, komunikasi yang jelas itu kuncinya. Apakah ini sudah sesuai dengan yang Anda bayangkan? Kalau belum, tolong beri tahu saya sekarang, ya! Saya senang sekali bisa bekerja sama dengan orang dari berbagai negara. Setiap hari saya belajar hal baru, mulai dari cara bicara yang sopan, cara menawar harga dengan tenang, sampai cara menjelaskan ide yang rumit dengan kalimat sederhana. Terima kasih sudah mendengarkan, dan sampai jumpa di video berikutnya.';
+  // ================= tes mikrofon =================
 
   const Mic = { cap:null, mode:null, frames:[], rate:48000, timer:null };
   async function micStart(mode, profile, meterId, maxSec, onDone){
@@ -1345,6 +1822,7 @@
     if(cb) cb(frames, rate);
   }
   $('btnMicTest').onclick = async () => {
+    if(Conv.on){ toast('Hentikan sesi dulu sebelum tes mikrofon'); return; }
     if(Mic.cap && Mic.mode === 'test'){ micStop(); return; }
     $('micVerdict').textContent = '';
     const ok = await micStart('test', micProfile(), 'meterMic', 8, (frames, rate) => {
@@ -1354,118 +1832,88 @@
     });
     if(ok){ $('btnMicTest').textContent = '⏹ Selesai'; $('micHint').textContent = 'Ucapkan: "satu, dua, tiga … sepuluh" dengan suara biasa.'; }
   };
-  let sampleBlob = null, sampleUrl = null;
-  function setSample(blob, label){
-    sampleBlob = blob;
-    if(sampleUrl) URL.revokeObjectURL(sampleUrl);
-    sampleUrl = URL.createObjectURL(blob);
-    const p = $('samplePrev'); p.src = sampleUrl; p.style.display = 'block';
-    $('recInfo').textContent = label;
-  }
-  $('btnRecSample').onclick = async () => {
-    if(Mic.cap && Mic.mode === 'rec'){ micStop(); return; }
-    $('recVerdict').textContent = '';
-    const profile = $('sampleProfile').value;
-    const ok = await micStart('rec', profile, 'meterRec', 150, (frames, rate) => {
-      $('btnRecSample').textContent = '⏺ Rekam ulang';
-      const a = analyzeFrames(frames, rate);
-      if(!a || a.dur < 3){ $('recInfo').textContent = 'Rekaman terlalu pendek.'; renderVerdict($('recVerdict'), a); return; }
-      let x = resample(concatF32(frames), rate, 24000);
-      let pk = 0; for(let i = 0; i < x.length; i++){ const v = Math.abs(x[i]); if(v > pk) pk = v; }
-      const gain = pk > 0 ? Math.min(10, 0.7 / pk) : 1;                 // rapikan level (puncak sekitar -3 dB)
-      if(gain !== 1) for(let i = 0; i < x.length; i++) x[i] *= gain;
-      const wav = new Blob([encodeWav(x, 24000)], { type:'audio/wav' });
-      setSample(wav, 'Terekam ' + a.dur.toFixed(0) + ' dtk, WAV 24 kHz lossless (' + (wav.size / 1e6).toFixed(1) + ' MB)' + (a.dur < 45 ? ' · disarankan minimal 60 dtk' : ''));
-      renderVerdict($('recVerdict'), a);
-    });
-    if(ok){ $('btnRecSample').textContent = '⏹ Selesai merekam'; $('recInfo').textContent = 'Merekam… baca naskah di atas.'; }
-  };
-  $('sampleFile').onchange = e => { const f = e.target.files[0]; if(f){ setSample(f, 'File: ' + f.name + ' (' + (f.size / 1e6).toFixed(1) + ' MB)'); } };
-  $('cloneBtn').onclick = async () => {
-    const st = $('cloneStatus');
-    if(!elKey()){ st.textContent = 'Isi API key ElevenLabs di ⚙️ dulu.'; openSheet(); return; }
-    if(!sampleBlob){ st.textContent = 'Rekam atau pilih sampel suara dulu (langkah 2).'; return; }
-    if(!$('consent').checked){ st.textContent = 'Centang persetujuan bahwa ini suara kamu sendiri.'; return; }
-    st.textContent = 'Membuat klon…'; $('cloneBtn').disabled = true;
-    try{
-      const t = sampleBlob.type || '';
-      const ext = t.includes('wav') ? 'wav' : (t.includes('mpeg') || t.includes('mp3')) ? 'mp3' : t.includes('ogg') ? 'ogg' : t.includes('mp4') ? 'm4a' : 'webm';
-      const fd = new FormData();
-      fd.append('name', $('cloneName').value.trim() || 'Suara Saya');
-      fd.append('files', sampleBlob, sampleBlob.name || ('suara.' + ext));
-      fd.append('remove_background_noise', $('sampleProfile').value === 'clean' ? 'false' : 'true');
-      const r = await fetch('https://api.elevenlabs.io/v1/voices/add', { method:'POST', headers:{ 'xi-api-key': elKey() }, body: fd });
-      if(!r.ok) throw await elErr(r);
-      const j = await r.json();
-      $('voiceId').value = j.voice_id; lsSet('tr_voice', j.voice_id);
-      $('useEL').checked = true; lsSet('tr_useel', '1');
-      st.textContent = '✅ Klon dibuat dan dipasang. Coba langkah 4.';
-    }catch(e){ st.textContent = '⚠ Gagal membuat klon: ' + e.message; }
-    $('cloneBtn').disabled = false;
-  };
-  $('btnPlayClone').onclick = async () => {
-    unlockAudio();
-    const st = $('voiceStatus');
-    if(!elKey() || !$('voiceId').value.trim()){ st.textContent = 'Isi API key ElevenLabs dan buat klon dulu.'; return; }
-    st.textContent = 'Memutar suara klon…';
-    try{ await elSpeak($('voiceTestText').value.trim() || 'Hello.'); st.textContent = ''; }catch(e){ st.textContent = '⚠ Gagal: ' + e.message; }
-  };
-  $('btnPlayOrig').onclick = () => {
-    if(!sampleUrl){ $('voiceStatus').textContent = 'Belum ada rekaman sampel.'; return; }
-    unlockAudio(); player.src = sampleUrl; player.playbackRate = 1; const p = player.play(); if(p && p.catch) p.catch(() => {});
-  };
-
-  // ================= pengaturan, tab, tombol umum =================
+  // ================= pengaturan, tampilan, tombol umum =================
   function showView(v){
+    if(Conv.on) endSession();
     if(Listen.active) stopListening();
-    ['talk', 'test', 'voice'].forEach(x => {
-      $('view-' + x).classList.toggle('on', x === v);
-      document.querySelector('#tabs [data-view="' + x + '"]').classList.toggle('on', x === v);
-    });
+    $('view-talk').classList.toggle('on', v === 'talk');
+    $('view-test').classList.toggle('on', v === 'test');
     if(v === 'test'){ renderScript(); renderSummary(); renderTestList(); }
-    if(v === 'voice') updEl();
   }
-  $('tabs').addEventListener('click', e => { const b = e.target.closest('button[data-view]'); if(b) showView(b.dataset.view); });
   $('btnSettings').onclick = openSheet;
   $('btnClose').onclick = closeSheet;
   $('sheet').addEventListener('click', e => { if(e.target === $('sheet')) closeSheet(); });
-  document.querySelectorAll('button[data-paste]').forEach(b => b.onclick = async () => {
-    const id = b.dataset.paste;
-    try{ const t = await navigator.clipboard.readText(); $(id).value = (t || '').trim(); $(id).dispatchEvent(new Event('input')); toast('Tertempel'); }
-    catch(_){ toast('Tidak bisa membaca clipboard. Tempel manual di kolom.'); $(id).focus(); }
-  });
+  $('btnOpenLab').onclick = () => { closeSheet(); showView('test'); };
+  $('btnBackTalk').onclick = () => showView('talk');
+  $('vbMic').onclick = onMainButton;
+  $('vbStart').onclick = startSession;
+  $('vbStop').onclick = () => endSession('Sesi dihentikan.');
 
-  bind('keyOpenAI', 'tr_key_openai', '');
-  bind('keyClaude', 'tr_key_claude', '');
-  bind('elkey', 'tr_elkey', '', updEl);
-  bind('sttEngine', 'tr_stt', 'openai');
-  bind('modelSTT', 'tr_model_stt', 'gpt-4o-mini-transcribe');
+  // akses backend
+  const vbInfo = t => { $('vbConnInfo').textContent = t; };
+  function vbDescribe(me){
+    return 'Terhubung. Sisa kredit: ' + me.credits + '. Layanan berbayar: ' + (me.paid_enabled ? 'aktif' : 'dinonaktifkan administrator') +
+      '. Pengenal suara: ' + me.providers.stt.provider + ', terjemahan: ' + me.providers.translate.provider + ', suara: ' + me.providers.tts.provider + '.';
+  }
+  $('vbApi').value = lsGet('vb_api') || (window.VB_CONFIG && window.VB_CONFIG.API_BASE) || '';
+  $('vbSave').onclick = async () => {
+    const base = $('vbApi').value.trim();
+    if(base && !/^(https:\/\/|http:\/\/(localhost|127\.0\.0\.1))/.test(base)){ vbInfo('Alamat server harus diawali https://'); return; }
+    lsSet('vb_api', base);
+    const code = $('vbCode').value.trim(); if(code){ VB.setToken(code); $('vbCode').value = ''; }
+    if(!VB.ready()){ vbInfo('Isi alamat server dan kode akses. Mode Gratis aktif.'); VB.me = null; renderPlan(); return; }
+    vbInfo('Memeriksa…');
+    try{ vbInfo(vbDescribe(await vbRefresh())); }
+    catch(e){ vbInfo('Gagal: ' + e.message); if(e.status === 401){ VB.setToken(''); VB.me = null; renderPlan(); } }
+  };
+  $('vbDisconnect').onclick = () => { VB.setToken(''); VB.me = null; renderPlan(); vbInfo('Terputus. Mode Gratis aktif.'); };
+
+  // sumber audio lawan
+  bind('vbSrc', 'vb_src', 'mic');
+  if(!canTab()){ $('vbSrcTab').disabled = true; $('vbSrc').value = 'mic'; }
+  function srcNote(){
+    $('vbSrcNote').textContent = !canTab() && $('vbSrc').value !== 'tab'
+      ? 'Audio tab hanya tersedia di Chrome desktop. Di HP, lawan harus terdengar lewat mikrofon.'
+      : $('vbSrc').value === 'tab'
+        ? 'Pilih tab Meet atau Zoom web, lalu centang "Bagikan audio tab". Tulisan "terverifikasi" muncul hanya setelah suara benar-benar terdeteksi. Belum diuji dengan semua Meet atau Zoom.'
+        : 'Cocok untuk tatap muka atau lawan lewat speaker. Bila lawan ada di Zoom atau Meet dan Anda memakai earphone, mikrofon tidak mendengarnya: pakai Audio tab di desktop.';
+  }
+  $('vbSrc').addEventListener('change', srcNote); srcNote();
+
+  // audio dan suara
   bind('micProfile', 'tr_micprofile', 'clean');
   bind('sens', 'tr_sens', '1', () => { $('sensVal').textContent = parseFloat($('sens').value).toFixed(1); });
   $('sensVal').textContent = parseFloat($('sens').value).toFixed(1);
-  bind('engine', 'tr_engine', 'openai');
-  bind('modelOpenAI', 'tr_model_openai', 'gpt-4o-mini');
-  bind('modelClaude', 'tr_model_claude', 'claude-haiku-5-5');
   bind('mode', 'tr_mode', 'face');
   bind('rate', 'tr_rate', '1', () => { $('rateVal').textContent = parseFloat($('rate').value).toFixed(1); });
   $('rateVal').textContent = parseFloat($('rate').value).toFixed(1);
-  bind('subSize', 'tr_subsize', '30', () => { $('sizeVal').textContent = $('subSize').value; document.documentElement.style.setProperty('--subsize', $('subSize').value + 'px'); });
-  $('sizeVal').textContent = $('subSize').value; document.documentElement.style.setProperty('--subsize', $('subSize').value + 'px');
-  bind('subOn', 'tr_subon', true);
   bind('keepAwake', 'tr_awake', true);
-  bind('elModel', 'tr_elmodel', 'eleven_flash_v2_5');
-  bind('voiceId', 'tr_voice', '');
-  bind('useEL', 'tr_useel', false);
+
+  // riwayat dan privasi
+  $('histOptIn').checked = histOn();
+  $('histOptIn').addEventListener('change', () => { lsSet('vb_hist_optin', $('histOptIn').checked ? '1' : '0'); if($('histOptIn').checked) histSave(); toast($('histOptIn').checked ? 'Riwayat teks akan disimpan di perangkat ini' : 'Riwayat tidak disimpan lagi (data lama tetap sampai dihapus)'); });
+  $('btnExpSession').onclick = () => { if(!CONV.length){ toast('Belum ada percakapan di sesi ini'); return; } download('transkrip-vocalbridge-' + stamp() + '.txt', 'text/plain', transcriptText([sessObj()])); };
+  $('btnExpAll').onclick = () => { const a = histRead(); if(!a.length){ toast('Belum ada riwayat tersimpan'); return; } download('riwayat-vocalbridge-' + stamp() + '.txt', 'text/plain', transcriptText(a)); };
+  $('btnDelSession').onclick = () => { if(!confirm('Hapus semua percakapan di sesi ini dari layar' + (histOn() ? ' dan dari riwayat tersimpan' : '') + '?')) return; clearSession(); toast('Sesi dihapus'); };
+  $('btnDelHist').onclick = () => { if(!confirm('Hapus semua riwayat teks yang tersimpan di perangkat ini?')) return; try{ localStorage.removeItem(HKEY); }catch(_){} histInfo(); toast('Riwayat tersimpan dihapus'); };
+  $('btnReviewConsent').onclick = () => { closeSheet(); showConsent(); };
+
+  // QA Lab
   bind('testerName', 'tr_tester', '', renderSummary);
   bind('sessionName', 'tr_session', defaultSessionName(), () => { renderSummary(); renderTestList(); });
   bind('testSpeak', 'tr_testspeak', false);
   bind('exportScope', 'tr_scope', 'session');
-  updEl(); renderScript(); renderSummary();
-  document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && Listen.active) keepAwake(true); });
+
+  // mulai
+  if(purgeLegacyKeys()) toast('Kunci API lama dihapus dari perangkat ini. Kunci kini hanya ada di server.');
+  renderPlan(); histInfo(); renderScript(); renderSummary(); setState('idle'); watchPermission();
+  if(VB.ready()) vbRefresh().then(me => vbInfo(vbDescribe(me))).catch(e => vbInfo('Gagal terhubung: ' + e.message));
+  document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && (Listen.active || Conv.on)) keepAwake(true); });
   if('speechSynthesis' in window) speechSynthesis.onvoiceschanged = () => {};
 
-  if(window.__TEST__) window.__t = { DIALOGS, hist: () => history, sub, subShow, subSet, subByChar, subDone, speak, elSpeak, handle, ttsFlags, Listen, startListening, stopListening, LOG: () => LOG,
-    normText, wer, accuracy, tokenF1, diffHtml, parseDialog, analyzeFrames, verdictFor, encodeWav, resample, buildCsv, buildText, buildTranscript, scopeLogs, SCRIPTS, Script, scriptItems, showView };
+  if(window.__TEST__) window.__t = { DIALOGS, hist: () => history, sub, subShow, subSet, subByChar, subDone, speak, handle, ttsFlags, Listen, startListening, stopListening, LOG: () => LOG,
+    normText, wer, accuracy, tokenF1, diffHtml, parseDialog, analyzeFrames, verdictFor, encodeWav, resample, buildCsv, buildText, buildTranscript, scopeLogs, SCRIPTS, Script, scriptItems, showView,
+    Conv, VB, VAD, StreamTap, CONV, CARDS, newCard, setState, startSession, endSession, onMainButton, vbCall, translate, sttBackend, ttsBackend, purgeLegacyKeys, transcriptText, sessObj, histRead, clearSession, onThem, onMeSpeech, completeTurn };
 })();
 </script>
 </body>

@@ -1,0 +1,15 @@
+# Tes otomatis tanpa rahasia dan tanpa biaya. Tidak ada secrets yang dipakai.
+name: tes
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  tes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: node tests/static-check.js
+      - run: cd backend && node --test test/*.test.js

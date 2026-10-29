@@ -1,0 +1,14 @@
+{
+  "name": "vocalbridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "VocalBridge: penerjemah meeting pribadi Indonesia-Inggris. Frontend statis (GitHub Pages) + backend aman.",
+  "scripts": {
+    "test": "npm run test:static && npm run test:backend && npm run test:regress",
+    "test:static": "node tests/static-check.js",
+    "test:backend": "cd backend && node --test test/*.test.js",
+    "test:regress": "node tests/regress.js",
+    "test:e2e": "node tests/e2e/run.js"
+  },
+  "devDependencies": { "playwright": "^1.50.0" }
+}
