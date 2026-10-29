@@ -1,11 +1,21 @@
-# Tes otomatis tanpa rahasia dan tanpa biaya. Tidak ada secrets yang dipakai.
+# Tes otomatis tanpa rahasia dan tanpa biaya. Tidak ada secrets, tidak ada deploy.
+# Workflow ini hanya membaca repo (contents: read) dan tidak mempublikasikan apa pun.
 name: tes
-on: [push, pull_request]
+on:
+  push:
+    branches: [main, 'vocalbridge-v*']
+  pull_request:
+    branches: [main]
 permissions:
   contents: read
+concurrency:
+  group: tes-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
-  tes:
+  backend-statis:
+    name: Backend, statis, dependensi, regresi
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
@@ -13,3 +23,27 @@ jobs:
         with: { node-version: 22 }
       - run: node tests/static-check.js
       - run: cd backend && node --test test/*.test.js
+      - run: node tests/dependency-check.js
+      - run: cd backend && npm audit --omit=dev
+      - run: node tests/regress.js
+  e2e-chromium:
+    name: Chromium end-to-end (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      # Lockfile akar belum ada di repo (dibuat di sini agar versi terpasang tercatat di log).
+      - run: npm install --no-audit --no-fund
+      - run: npm ls playwright
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/run-all.js
+      - run: npm audit --audit-level=high
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bukti-validasi
+          path: docs/bukti/ringkasan-validasi.txt
+          if-no-files-found: ignore

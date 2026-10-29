@@ -1,14 +1,14 @@
 # Panduan Railway untuk backend VocalBridge
 
 **Status: belum ada proyek Railway untuk VocalBridge. Dokumen ini hanya rencana. Tidak ada yang dibuat, di-deploy, atau diberi kunci oleh saya.** Semua langkah di bawah dilakukan oleh Anda setelah menyetujui PR V1.1.
-Catatan: pesan permintaan terputus pada butir `ALLOWED_ORIGINS sesua…`; saya membacanya sebagai "sesuai alamat GitHub Pages". Bila ada butir lain setelahnya, kirim ulang dan saya tambahkan.
-Sumber yang diverifikasi dari dokumentasi Railway (29 Okt 2026): Volumes, Config as Code, Monorepo. Yang **belum** terverifikasi (dokumen tidak berhasil diambil) ditandai ⚠ dan harus dicek langsung di UI Railway.
+**Proyek Railway TERPISAH:** buat proyek baru bernama `vocalbridge-backend`. Jangan memakai proyek, Volume, variabel, atau domain milik aplikasi lain (mis. Belimint). Satu proyek = satu layanan = satu Volume.
+Sumber yang diverifikasi dari dokumentasi Railway (29 Okt 2026): Volumes, Config as Code, Monorepo, Variables. Yang **belum** terverifikasi (healthcheck, replika ber-Volume) ditandai ⚠ dan harus dicek langsung di UI Railway.
 
 ## 1. Rencana konfigurasi
 | Pengaturan | Nilai | Catatan |
 |---|---|---|
-| Layanan | `vocalbridge-backend` (satu layanan) | Frontend tetap di GitHub Pages, bukan di Railway |
-| Sumber | repo `victorhome0209-gif/penerjemah-realtime`, **branch yang Anda pilih** (setelah PR di-merge: `main`) | Jangan auto-deploy dari branch percobaan |
+| Proyek / layanan | proyek `vocalbridge-backend`, satu layanan di dalamnya | Frontend tetap di GitHub Pages, bukan di Railway |
+| Sumber | repo `victorhome0209-gif/penerjemah-realtime`, branch **`main` saja**, dan hanya setelah Anda me-merge PR | **Jangan** hubungkan `vocalbridge-v1.1` atau branch percobaan lain. Matikan PR environments bila ada di Settings ⚠ (tidak dijelaskan di dokumen Variables) |
 | **Root Directory** | `/backend` | Settings layanan. Railway hanya mengambil berkas di folder itu |
 | Builder | Dockerfile (`backend/Dockerfile`) | Railway memakai Dockerfile bila ada. Image `node:22-slim`, tanpa `npm install` |
 | **Jumlah instance** | **1** | Jangan menaikkan replika. Lihat bagian 3 |
@@ -23,8 +23,8 @@ Sumber yang diverifikasi dari dokumentasi Railway (29 Okt 2026): Volumes, Config
 Rahasia: isi sendiri di Railway. Jangan menempelkannya ke chat, GitHub, atau GitHub Actions variables.
 | Variabel | Nilai | Jenis |
 |---|---|---|
-| `OPENAI_API_KEY` | kunci OpenAI **baru**, khusus VocalBridge | **Rahasia** (Railway Variables) |
-| `ADMIN_TOKEN` | teks acak ≥ 24 karakter, mis. `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"` | **Rahasia** |
+| `OPENAI_API_KEY` | kunci OpenAI **baru**, khusus VocalBridge | **Rahasia**: isi lalu **Seal** (lihat catatan di bawah) |
+| `ADMIN_TOKEN` | teks acak ≥ 24 karakter, mis. `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"` | **Rahasia**: isi lalu **Seal**; simpan salinan di pengelola kata sandi Anda |
 | `DATA_DIR` | `/data` | biasa |
 | `ALLOWED_ORIGINS` | `https://victorhome0209-gif.github.io` | biasa |
 | `TRUST_PROXY` | `true` | biasa |
@@ -33,7 +33,8 @@ Rahasia: isi sendiri di Railway. Jangan menempelkannya ke chat, GitHub, atau Git
 | `REFUND_ON_PROVIDER_5XX` | `false` | biasa |
 - **`ALLOWED_ORIGINS` adalah origin, bukan URL halaman:** hanya skema dan host, tanpa `/penerjemah-realtime/` dan tanpa garis miring di akhir. Alamat halaman `https://victorhome0209-gif.github.io/penerjemah-realtime/` menghasilkan origin `https://victorhome0209-gif.github.io`. Origin lain (termasuk domain khusus di masa depan) ditolak 403.
 - Biarkan **tidak ada**: `PORT`, `ALLOW_ANY_ORIGIN`, `ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`, `ENABLE_ANTHROPIC`, `ENABLE_ELEVENLABS`, `DATA_LOCK` (bawaan `true`).
-- Rahasia: bila Railway menawarkan opsi "seal" untuk variabel, gunakan ⚠ (cek di UI; dokumen tidak berhasil diambil). Mengubah variabel biasanya memicu deploy ulang ⚠.
+- **Seal (terverifikasi di dokumentasi Railway):** menu titik tiga di samping variabel → Seal. Nilai tersegel tidak pernah terlihat lagi di UI maupun API, tetap diteruskan ke deployment, **tidak bisa di-unseal**, tidak bisa diubah lewat Raw Editor (ubah lewat menu titik tiga), dan tidak disalin ke PR environment. Karena nilainya tak terbaca lagi, simpan `ADMIN_TOKEN` di tempat Anda sendiri.
+- Perubahan variabel **tidak otomatis men-deploy**: Railway menampung sebagai perubahan bertahap yang harus Anda tinjau lalu deploy.
 - Tulis kunci OpenAI **hanya** di Railway. Frontend tidak pernah memegang kunci; ia memakai kode akses `VB-…`.
 
 ## 3. Satu instance dan Volume
@@ -68,5 +69,10 @@ Rahasia: isi sendiri di Railway. Jangan menempelkannya ke chat, GitHub, atau Git
 - **Pantau:** `GET /admin/usage`, `GET /admin/transactions?state=UNKNOWN`, `GET /admin/audit`.
 - **Biaya Railway** (layanan + Volume) terpisah dari biaya OpenAI; cek halaman harga Railway sebelum membuat proyek.
 
-## 7. Yang tidak dilakukan
+## 7. Tanpa deploy otomatis dari branch pengembangan
+- Workflow GitHub di repo ini hanya menjalankan tes (`contents: read`, tanpa secrets, tanpa langkah deploy). Ada pemeriksaan otomatis (`tests/dependency-check.js`) yang gagal bila workflow memuat deploy atau izin tulis.
+- GitHub Pages tidak diubah oleh PR ini; Pages tetap mengikuti pengaturan yang sudah ada. Periksa Settings → Pages bahwa sumbernya `main`, bukan `vocalbridge-v1.1`.
+- Di Railway, hubungkan hanya `main`, dan kebijakan merge ke `main` ada di tangan Anda.
+
+## 8. Yang tidak dilakukan
 Tidak membuat proyek Railway, Volume, domain, atau variabel; tidak memasukkan kunci; tidak men-deploy; tidak mengubah DNS. Semuanya menunggu persetujuan Anda.

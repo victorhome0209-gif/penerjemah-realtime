@@ -15,6 +15,16 @@ check('Backend: Node minimum dinyatakan (engines.node)', !!(pkg.engines && pkg.e
 const root = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 console.log('INFO  Dependensi akar (hanya untuk tes browser, tidak dikirim ke produksi): ' + JSON.stringify(root.devDependencies || {}) + '; runtime: ' + JSON.stringify(root.dependencies || {}));
 check('Akar: tidak ada dependensi runtime', !root.dependencies);
+// Frontend: tanpa skrip/gaya/font eksternal (CDN), CSP membatasi sumber.
+const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+check('Frontend: tidak ada <script>/<link>/<img>/<iframe> ke alamat http(s) eksternal', !/<(script|link|img|iframe|source|video|audio)\b[^>]*\b(src|href)\s*=\s*["']?(https?:)?\/\//i.test(html));
+check('Frontend: tidak ada @import atau url(http...) di CSS', !/@import|url\(\s*["']?(https?:)?\/\//i.test(html));
+check('Frontend: CSP script-src hanya self/inline (tanpa host luar)', /script-src 'self' 'unsafe-inline';/.test(html));
+check('Frontend: CSP object-src none dan base-uri none', /object-src 'none'/.test(html) && /base-uri 'none'/.test(html));
+const ext = [...new Set([...html.matchAll(/https?:\/\/[A-Za-z0-9.-]+/g)].map(m => m[0]))].filter(u => !/^https?:\/\/(localhost|127\.0\.0\.1)$/.test(u));
+console.log('INFO  Host eksternal yang disebut di index.html (hanya panggilan data, bukan kode): ' + (ext.join(', ') || '-'));
+const lock = fs.existsSync(path.join(ROOT, 'package-lock.json'));
+console.log('INFO  package-lock.json akar: ' + (lock ? 'ada' : 'belum ada (tidak bisa dibuat tanpa registry npm; CI membuatnya dan menjalankan npm audit)'));
 const df = fs.readFileSync(path.join(ROOT, 'backend', 'Dockerfile'), 'utf8'); const from = (/^FROM\s+(\S+)/m.exec(df) || [])[1];
 console.log('INFO  Image dasar: ' + from + (/@sha256:/.test(from) ? ' (dikunci digest)' : ' (hanya tag; pertimbangkan mengunci digest dan memantau pembaruan keamanan)'));
 check('Dockerfile: image dasar Node LTS bertag versi (bukan latest)', /^node:\d+/.test(from || ''), from);
@@ -24,4 +34,6 @@ const uses = [...wf.matchAll(/uses:\s*(\S+)/g)].map(m => m[1]);
 for (const u of uses) if (!/@[0-9a-f]{40}$/.test(u)) warn.push(u);
 console.log('INFO  GitHub Actions: ' + uses.join(', ') + (warn.length ? '  [saran: kunci ke SHA commit, saat ini hanya tag mayor]' : ''));
 check('Actions: tidak memakai secrets', !/secrets\./.test(wf));
+check('Actions: tidak ada langkah deploy (pages/railway/docker push/ssh/curl POST)', !/deploy-pages|configure-pages|railway|docker\s+push|\bssh\b|curl\s+[^\n]*-X\s*POST/i.test(wf));
+check('Actions: izin hanya contents: read', /permissions:\s*\n\s*contents: read/.test(wf) && !/contents:\s*write|id-token|pages:\s*write/.test(wf));
 console.log('\n' + ok + '/' + (ok + bad) + ' lulus'); process.exit(bad ? 1 : 0);

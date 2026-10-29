@@ -1,19 +1,19 @@
 RINGKASAN VALIDASI VOCALBRIDGE
-Waktu: 2026-10-29T11:07:52.884Z
+Waktu: 2026-10-29T11:34:36.304Z
 Node: v22.23.4  Playwright: ada
-Commit: d42a685
+Commit: 22048a8
 
 Rangkaian                                   Exit  PASS   FAIL   Detik  Status
 Backend (node --test)                       0     95     0      24     LULUS
 Pemindai keamanan statis                    0     23     0      0      LULUS
-Inventaris dependensi                       0     7      0      0      LULUS
-Regresi QA Lab (Chromium)                   0     20     0      2      LULUS
-E2E Chromium (simulasi)                     0     99     0      67     LULUS
+Inventaris dependensi                       0     13     0      0      LULUS
+Regresi QA Lab (Chromium)                   0     20     0      1      LULUS
+E2E Chromium (simulasi)                     0     99     0      68     LULUS
 npm audit backend (butuh registri npm)      0     -      -      0      LULUS (0 kerentanan dilaporkan)
 npm audit akar/dev (butuh registri npm)     1     -      -      0      TIDAK BISA DIJALANKAN di lingkungan ini (registri tidak terjangkau atau tanpa lockfile); jalankan di mesin dengan internet
 
 Keluaran npm audit (potongan):
   npm audit backend (butuh registri npm): found 0 vulnerabilities
-  npm audit akar/dev (butuh registri npm): npm error audit Try creating one first with: npm i --package-lock-only | npm error audit Original error: loadVirtual requires existing shrinkwrap file | npm error A complete log of this run can be found in: /home/claude/.npm/_logs/2026-10-29T11_07_52_672Z-debug-0.log
+  npm audit akar/dev (butuh registri npm): npm error audit Try creating one first with: npm i --package-lock-only | npm error audit Original error: loadVirtual requires existing shrinkwrap file | npm error A complete log of this run can be found in: <jalur-lokal>
 
 Exit akhir: 0 (semua lulus)

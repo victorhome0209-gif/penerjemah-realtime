@@ -42,5 +42,5 @@ for (const r of rows) lines.push(r.name.padEnd(44) + String(r.exit).padEnd(6) + 
 const aud = rows.filter(r => r.tail).map(r => '  ' + r.name + ': ' + r.tail); if (aud.length) lines.push('', 'Keluaran npm audit (potongan):', ...aud);
 lines.push('', 'Exit akhir: ' + worst + (worst === 0 ? ' (semua lulus)' : worst === 2 ? ' (dependensi lingkungan hilang)' : ' (ada yang gagal)'));
 const txt = lines.join('\n'); console.log(txt);
-try { fs.mkdirSync(path.join(ROOT, 'docs', 'bukti'), { recursive: true }); fs.writeFileSync(path.join(ROOT, 'docs', 'bukti', 'ringkasan-validasi.txt'), txt + '\n'); } catch (_) {}
+try { fs.mkdirSync(path.join(ROOT, 'docs', 'bukti'), { recursive: true }); fs.writeFileSync(path.join(ROOT, 'docs', 'bukti', 'ringkasan-validasi.txt'), txt.replace(/\/(?:home|Users|root|tmp)\/[^\s|]*/g, '<jalur-lokal>') + '\n'); } catch (_) {}
 process.exit(worst);
