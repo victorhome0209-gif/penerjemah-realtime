@@ -37,6 +37,11 @@ jobs:
       # Lockfile akar belum ada di repo (dibuat di sini agar versi terpasang tercatat di log).
       - run: npm install --no-audit --no-fund
       - run: npm ls playwright
+      # SEMENTARA: mencetak lockfile hasil registri npm sebagai anotasi agar bisa disalin byte demi byte. Dihapus di commit lockfile.
+      - run: |
+          sha256sum package-lock.json
+          wc -c package-lock.json
+          base64 -w 900 package-lock.json | awk '{printf "::notice title=lock-%03d::%s\n", NR, $0}'
       - run: npx playwright install --with-deps chromium
       - run: node tests/run-all.js
       - run: npm audit --audit-level=high
