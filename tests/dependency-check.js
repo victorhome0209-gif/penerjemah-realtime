@@ -23,8 +23,15 @@ check('Frontend: CSP script-src hanya self/inline (tanpa host luar)', /script-sr
 check('Frontend: CSP object-src none dan base-uri none', /object-src 'none'/.test(html) && /base-uri 'none'/.test(html));
 const ext = [...new Set([...html.matchAll(/https?:\/\/[A-Za-z0-9.-]+/g)].map(m => m[0]))].filter(u => !/^https?:\/\/(localhost|127\.0\.0\.1)$/.test(u));
 console.log('INFO  Host eksternal yang disebut di index.html (hanya panggilan data, bukan kode): ' + (ext.join(', ') || '-'));
-const lock = fs.existsSync(path.join(ROOT, 'package-lock.json'));
-console.log('INFO  package-lock.json akar: ' + (lock ? 'ada' : 'belum ada (tidak bisa dibuat tanpa registry npm; CI membuatnya dan menjalankan npm audit)'));
+const lockPath = path.join(ROOT, 'package-lock.json');
+check('Akar: package-lock.json ada', fs.existsSync(lockPath));
+if (fs.existsSync(lockPath)) {
+  const lk = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+  const rootPkg = lk.packages && lk.packages[''];
+  check('Lockfile: devDependencies cocok dengan package.json', !!rootPkg && JSON.stringify(rootPkg.devDependencies) === JSON.stringify(root.devDependencies || {}));
+  const ents = Object.entries(lk.packages || {}).filter(([k]) => k);
+  check('Lockfile: setiap paket berasal dari registry.npmjs.org dengan integrity sha512', ents.length > 0 && ents.every(([, v]) => /^https:\/\/registry\.npmjs\.org\//.test(v.resolved || '') && /^sha512-/.test(v.integrity || '')));
+}
 const df = fs.readFileSync(path.join(ROOT, 'backend', 'Dockerfile'), 'utf8'); const from = (/^FROM\s+(\S+)/m.exec(df) || [])[1];
 console.log('INFO  Image dasar: ' + from + (/@sha256:/.test(from) ? ' (dikunci digest)' : ' (hanya tag; pertimbangkan mengunci digest dan memantau pembaruan keamanan)'));
 check('Dockerfile: image dasar Node LTS bertag versi (bukan latest)', /^node:\d+/.test(from || ''), from);
