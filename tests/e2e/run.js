@@ -354,6 +354,24 @@ test('V1.2 kesalahan API: kegagalan ditampilkan apa adanya, tanpa cadangan grati
   } finally { delete S.mock.fail.translate; delete S.mock.fail.tts; }
 });
 
+test('V1.2 kuota OpenAI (hard spend limit): pesan jelas di kartu, kredit tidak terpotong dua kali, tanpa jalur gratis', async (b, S) => {
+  const p = await newPage(b, S, { init: spyInit });
+  await p.route('https://api.mymemory.translated.net/**', route => route.abort());
+  const code = await S.api.mkCode(30);
+  try {
+    await connect(p, S, code);
+    S.mock.fail.translate = 429; S.mock.failCode.translate = 'project_spend_limit_exceeded';
+    await startSession(p);
+    await p.waitForFunction(() => /Batas biaya atau kuota/.test((document.querySelector('article.vb-turn.them [data-k="chip"]') || {}).textContent || ''), null, { timeout: 30000 });
+    check('Kuota: kartu menampilkan "batas biaya atau kuota ... hubungi administrator", bukan "sibuk"', !/sibuk/i.test(await txt(p, 'article.vb-turn.them [data-k="chip"]')) && /administrator/.test(await txt(p, 'article.vb-turn.them [data-k="chip"]')), await txt(p, 'article.vb-turn.them [data-k="chip"]'));
+    check('Kuota: terjemahan kosong, teks asli tetap tampil', (await p.evaluate(() => document.querySelector('article.vb-turn.them [data-k="tr"]').classList.contains('dim'))) && (await txt(p, 'article.vb-turn.them [data-k="orig"]')) === 'Could you explain the proposal?');
+    await p.click('#vbStop');
+    const left = await S.api.credits(code);
+    check('Kuota: hanya STT yang ditagih (2 kredit per giliran); terjemahan ditolak dikembalikan, tidak ada potongan ganda', (30 - left) % 2 === 0 && left <= 28 && left >= 20, left);
+    check('Kuota: tidak ada kunci/rahasia di halaman dan tidak ada MyMemory/SpeechRecognition/suara perangkat', !(await bodyText(p)).includes('sk-') && noFreeNet(p) && (await freeUse(p)).length === 0);
+  } finally { delete S.mock.fail.translate; delete S.mock.failCode.translate; }
+});
+
 test('Suara Saya (klon suara): modul dipertahankan sebagai fitur Pro NONAKTIF, rekam sampel lokal tanpa jaringan', async (b, S) => {
   const p = await newPage(b, S); await connect(p, S);
   await p.click('#btnSettings'); await p.click('summary:has-text("Suara Saya")'); await p.click('#btnOpenVoice');
