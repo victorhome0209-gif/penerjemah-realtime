@@ -1,3 +1,5 @@
+> V1.2 (API-only): gunakan `docs/CHECKLIST-UJI-OPENAI.md` sebagai daftar periksa utama. Dokumen ini dipertahankan sebagai prosedur rinci.
+
 # Prosedur uji OpenAI nyata dengan biaya terbatas (P7)
 
 **Belum dijalankan.** Prosedur ini hanya boleh dimulai setelah Anda memberi izin uji. Tujuan: membuktikan alur nyata dengan biaya kurang dari sekitar US$0,50.
@@ -36,7 +38,7 @@ Pakai earphone. Catat hasil di `docs/HASIL-UJI.md`.
 | F8 | Restart backend (hosting) saat tidak ada pemakaian, lalu cek saldo | Saldo dan jumlah transaksi sama |
 
 Hal yang diverifikasi untuk pertama kali pada OpenAI sungguhan (belum pernah dipanggil):
-- Model `gpt-transcribe` menerima kolom `languages[]` (bila tidak, server otomatis mencoba `language`; atau set `OPENAI_STT_LANG_FIELD=language`).
+- Model `gpt-transcribe` menerima kolom `languages[]` (bila ditolak 400, transaksi gagal bersih dan kredit dikembalikan; server TIDAK mencoba lagi dengan cara lain. Set `OPENAI_STT_LANG_FIELD=language` lalu restart).
 - Model `gpt-6-luna` menerima `reasoning_effort: none`, `store:false`, `safety_identifier`, peran `developer` (bila ada yang ditolak 400, transaksi gagal bersih dan dikembalikan; ubah lewat variabel `OPENAI_*` di BACKEND.md).
 - Header `X-Client-Request-Id` diterima endpoint audio (bila tidak, set `OPENAI_CLIENT_REQUEST_ID=false`) dan ID transaksi muncul di log OpenAI.
 - `gpt-4o-mini-tts` dengan suara `marin` menghasilkan suara Indonesia dan Inggris yang layak.
