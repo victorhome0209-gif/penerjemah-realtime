@@ -38,6 +38,9 @@ Baseline: `origin/vocalbridge-v1.2` @ `4ed671b`, tree `2f84268851c5736491a05045c
 | B-12 | P0 | Menjalankan `tests/staging-check.js --url` dan `--persist` terhadap Railway setelah deployment disetujui | BLOCKED (deployment) |
 | B-8 | P1 | Uji HTTP 400 asli untuk JSON rusak saat berbayar dimatikan (saat ini 503 `paid_disabled` lebih dulu) | Catatan, tes backend ber-mock sudah menutup 400 |
 | B-10 | P2 | Kunci Actions ke SHA commit (saran dependency-check) | Belum |
+| B-13 | P1 | **H2: jalur yang BELUM dijaga sesi.** `retranslate` (koreksi teks kartu) dan `replay` (putar ulang suara) memanggil `/api/translate` dan `/api/tts` lewat aksi per kartu tanpa guard sesi/`alive`; jalur QA Lab (`handle`, `Listen`) memanggil STT/terjemahan tanpa guard H1. H1/H1-c hanya menutup giliran percakapan (STT, terjemahan, suara) | Terbuka. Jangan mengklaim semua jalur tertutup |
+| B-14 | P1 | Tidak ada antrean STT lintas sesi: `Conv.chain` direset saat sesi baru, jadi request lama yang sudah terkirim dapat tumpang tindih dengan sesi baru. **maxInflight STT global = 1 tidak dijamin** (hanya antar giliran dalam satu sesi) | Terbuka; butuh antrean global bila ingin dijamin |
+| B-15 | P2 | Request in-flight tidak dijamin bisa dibatalkan dan kredit yang sudah terpakai TIDAK otomatis kembali saat hasil dibuang (H1); pemberitahuan sekali per sesi menyatakan ini | Perilaku yang dipilih (D1/D2); dicatat sebagai batas |
 | B-11 | P2 | Peringatan CI: actions v4 berjalan di Node 20 yang usang (dipaksa ke Node 24); `ubuntu-latest` pindah ke Ubuntu 26 | Informasional; pantau, naikkan versi actions bila perlu |
 
 ## Tindakan pemilik yang memblokir

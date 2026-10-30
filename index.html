@@ -839,6 +839,9 @@
     let last = null;
     const tries = o.tries || 2, limit = o.timeout || 25000;
     for(let attempt = 0; attempt < tries; attempt++){
+      // H1-c: jangan memulai atau MENGULANG permintaan untuk sesi yang sudah berhenti (retry bisa memotong kredit setelah sesi berhenti).
+      // Permintaan yang sudah terkirim tidak bisa dibatalkan dan kreditnya tidak otomatis kembali.
+      if(o.alive && !o.alive()){ const s = new Error('Sesi dihentikan.'); s.vb = true; s.stale = true; s.status = -1; throw s; }
       const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), limit);
       try{
         const r = await fetch(VB.base() + path, { method, headers: h, body, signal: ctl.signal });
@@ -877,20 +880,20 @@
   }
 
   // ================= terjemahan =================
-  async function translate(text, src, tgt){
+  async function translate(text, src, tgt, alive){
     if(!VB.ready()) throw offError('Hubungkan di Pengaturan.');
     const context = history.slice(-4).map(h => ({ side: h.side, text: h.orig }));
-    const r = await vbCall('/api/translate', { json: { text, src, tgt, context } });
+    const r = await vbCall('/api/translate', { json: { text, src, tgt, context }, alive });
     const j = await r.json(); noteCredits(r);
     return { text: j.text, engine: j.engine || 'OpenAI (backend)' };
   }
 
   // ================= pengenal suara =================
   const HALLU = /(thanks for watching|thank you for watching|terima kasih (telah|sudah) menonton|subtitles? by|amara\.org)/i;
-  async function sttBackend(samples, rate, lang){
+  async function sttBackend(samples, rate, lang, alive){
     if(!VB.ready()) throw offError('Hubungkan di Pengaturan.');
     const wav = encodeWav(resample(samples, rate, 16000), 16000);
-    const r = await vbCall('/api/stt?lang=' + lang, { body: new Blob([wav], { type:'audio/wav' }), headers: { 'Content-Type':'audio/wav' } });
+    const r = await vbCall('/api/stt?lang=' + lang, { body: new Blob([wav], { type:'audio/wav' }), headers: { 'Content-Type':'audio/wav' }, alive });
     const j = await r.json(); noteCredits(r);
     return (j.text || '').trim();
   }
@@ -991,9 +994,9 @@
   }
 
   // ================= suara terjemahan: hanya OpenAI lewat backend (tanpa suara perangkat) =================
-  async function ttsBackend(text, lang){
+  async function ttsBackend(text, lang, alive){
     if(!VB.ready()) throw offError('Hubungkan di Pengaturan.');
-    const r = await vbCall('/api/tts', { json: { text, lang } });
+    const r = await vbCall('/api/tts', { json: { text, lang }, alive });
     noteCredits(r);
     return await r.blob();
   }
@@ -1473,7 +1476,7 @@
     async function speakFor(K, side, text, lang, gen){
     speaking = true; if(side === 'me') setState('out');
     try{
-      const b = await ttsBackend(text, lang);
+      const b = await ttsBackend(text, lang, gen !== undefined ? () => sessionLive(gen) : undefined);
       if(gen !== undefined && !sessionLive(gen)){ noteDiscard(gen); return; }   // H1: audio in-flight dibuang; tidak menyentuh keadaan sesi lain
       K.rec.audio = b; await playBlob(b);
     }
@@ -1485,7 +1488,7 @@
     if(!sessionLive(gen)){ discardTurn(K, gen); return false; }                 // H1: tidak memulai terjemahan untuk sesi yang sudah berhenti
     K.setOrig(text); K.status('Menerjemahkan…');
     let r;
-    try{ r = await translate(text, c.src, c.tgt); }
+    try{ r = await translate(text, c.src, c.tgt, () => sessionLive(gen)); }
     catch(e){ if(!sessionLive(gen)){ discardTurn(K, gen); return false; } K.fail('Gagal menerjemahkan: ' + svcMsg(e) + ' (ketuk ✎ untuk coba lagi)'); return false; }
     if(!sessionLive(gen)){ discardTurn(K, gen); return false; }                 // H1: hasil terjemahan in-flight dibuang (kredit sudah terpakai)
     history.push({ id: K.rec.id, side, orig: text, tr: r.text });
@@ -1502,7 +1505,7 @@
     if(!sessionLive(gen)){ discardTurn(K, gen); return; }                       // H1: giliran antre milik sesi lama tidak memulai STT
     K.status('Mengenali suara…');
     let text;
-    try{ text = await sttBackend(samples, rate, 'en'); }
+    try{ text = await sttBackend(samples, rate, 'en', () => sessionLive(gen)); }
     catch(e){ if(!sessionLive(gen)){ discardTurn(K, gen); return; } K.remove(); showHint('Gagal mengenali suara lawan: ' + svcMsg(e)); return; }
     if(!sessionLive(gen)){ discardTurn(K, gen); return; }                       // H1: hasil STT in-flight dibuang
     if(!text || HALLU.test(text)){ K.remove(); return; }
@@ -1513,7 +1516,7 @@
     if(!sessionLive(gen)){ discardTurn(K, gen); return; }                       // H1: giliran antre milik sesi lama tidak memulai STT
     K.status('Mengenali suara…');
     let text;
-    try{ text = await sttBackend(samples, rate, 'id'); }
+    try{ text = await sttBackend(samples, rate, 'id', () => sessionLive(gen)); }
     catch(e){ if(!sessionLive(gen)){ discardTurn(K, gen); return; } K.remove(); showHint('Gagal mengenali suara Anda: ' + svcMsg(e)); backToListen(gen); return; }
     if(!sessionLive(gen)){ discardTurn(K, gen); return; }                       // H1: hasil STT in-flight dibuang
     if(!text || HALLU.test(text)){ K.remove(); showHint('Ucapan tidak terdengar jelas. Ketuk Saya Bicara dan coba lagi.'); backToListen(gen); return; }

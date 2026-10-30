@@ -566,6 +566,98 @@ test('H1-06: hasil sesi lama dibuang walau sesi baru sudah berjalan; sesi baru n
   } finally { S.mock.sttDelay = 0; }
 });
 
+// ---------------------------------------------------------------------------------------------
+// H1-c: penjaga retry. vbCall mencoba ulang sekali bila jaringan gagal. Setelah sesi dihentikan, percobaan ulang TIDAK boleh dikirim
+// (bisa memotong kredit setelah sesi berhenti). Retry pada sesi yang masih hidup tetap bekerja.
+// BATAS: request yang sudah sampai server tidak bisa dibatalkan; kredit yang terpakai tidak kembali otomatis.
+function h1cFail(p, pattern, { reach }) {   // percobaan PERTAMA dijatuhkan; reach=true: server memproses dulu (balasan hilang), false: tidak pernah sampai
+  const st = { n: 0, entered: false, release: null }; const gate = new Promise(r => { st.release = r; });
+  p.route(pattern, async route => {
+    st.n++;
+    if (st.n === 1) { st.entered = true; if (reach) await route.fetch(); await gate; return route.abort('failed'); }
+    return route.continue();
+  });
+  return st;
+}
+const h1cReqs = (p, re) => p.reqs.filter(r => re.test(r.url)).length;
+
+test('H1c-00: vbCall dengan alive=false tidak mengirim permintaan sama sekali', async (b, S) => {
+  const code = await S.api.mkCode(20);
+  const p = await newPage(b, S); await connect(p, S, code);
+  const n0 = h1cReqs(p, /\/api\/translate/), c0 = S.mock.calls.translate;
+  const r = await p.evaluate(async () => { try { await window.__t.vbCall('/api/translate', { json: { text: 'halo', src: 'id', tgt: 'en' }, alive: () => false }); return 'terkirim'; } catch (e) { return 'stale=' + !!e.stale + ' vb=' + !!e.vb; } });
+  check('H1c-00: ditolak sebagai stale tanpa jaringan', r === 'stale=true vb=true' && h1cReqs(p, /\/api\/translate/) === n0 && S.mock.calls.translate === c0, r);
+  check('H1c-00: alive=true tetap mengirim', await p.evaluate(async () => { const r = await window.__t.vbCall('/api/translate', { json: { text: 'halo', src: 'id', tgt: 'en' }, alive: () => true }); return r.ok; }));
+  check('H1c-00: kredit hanya untuk permintaan yang dikirim (20-1)', (await S.api.credits(code)) === 19, await S.api.credits(code));
+});
+
+test('H1c-01: terjemahan: percobaan pertama tidak sampai server, sesi dihentikan, retry TIDAK dikirim, kredit tidak terpotong lagi', async (b, S) => {
+  const code = await S.api.mkCode(50);
+  const p = await newPage(b, S); await connect(p, S, code); await h1Watch(p);
+  const hold = h1cFail(p, '**/api/translate', { reach: false });
+  await startSession(p);
+  check('H1c-01: permintaan terjemahan pertama ditahan di browser', await h1Until(async () => hold.entered));
+  const tr0 = S.mock.calls.translate;
+  await p.click('#vbStop'); await sleep(300); hold.release(); await sleep(1800);
+  check('H1c-01: hanya SATU permintaan terjemahan keluar dari halaman (tanpa retry)', h1cReqs(p, /\/api\/translate/) === 1, h1cReqs(p, /\/api\/translate/));
+  check('H1c-01: server tidak pernah menerima terjemahan', S.mock.calls.translate === tr0, S.mock.calls.translate - tr0);
+  check('H1c-01: tidak ada kartu dan riwayat; pemberitahuan sekali', (await h1Cards(p)) === 0 && (await h1Hist(p)) === 0 && (await h1Notices(p)) === 1, (await h1Cards(p)) + '/' + (await h1Hist(p)) + '/' + (await h1Notices(p)));
+  check('H1c-01: kredit hanya STT (50-2), terjemahan tidak dipotong setelah sesi berhenti', (await S.api.credits(code)) === 48, await S.api.credits(code));
+  check('H1c-01: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
+test('H1c-02: terjemahan: balasan hilang setelah server memproses, sesi dihentikan, retry TIDAK dikirim (tanpa replay), kredit tidak kembali', async (b, S) => {
+  const code = await S.api.mkCode(50);
+  const p = await newPage(b, S); await connect(p, S, code); await h1Watch(p);
+  const hold = h1cFail(p, '**/api/translate', { reach: true });
+  await startSession(p);
+  check('H1c-02: server sudah memproses terjemahan pertama', await h1Until(async () => hold.entered && S.mock.completed.translate >= 1));
+  await p.click('#vbStop'); await sleep(300); hold.release(); await sleep(1800);
+  check('H1c-02: hanya SATU permintaan keluar dari halaman, tidak ada balasan idempotent-replay', h1cReqs(p, /\/api\/translate/) === 1 && !p.resps.some(r => /\/api\/translate/.test(r.url) && r.h['idempotent-replay'] === 'true'), h1cReqs(p, /\/api\/translate/));
+  check('H1c-02: tidak ada kartu dan riwayat; pemberitahuan sekali', (await h1Cards(p)) === 0 && (await h1Hist(p)) === 0 && (await h1Notices(p)) === 1);
+  check('H1c-02: kredit yang sudah terpakai TIDAK kembali otomatis (50-3)', (await S.api.credits(code)) === 47, await S.api.credits(code));
+});
+
+test('H1c-03: STT: percobaan pertama tidak sampai server, sesi dihentikan, retry TIDAK dikirim, kredit utuh', async (b, S) => {
+  const code = await S.api.mkCode(50);
+  const p = await newPage(b, S); await connect(p, S, code); await h1Watch(p);
+  const hold = h1cFail(p, '**/api/stt**', { reach: false });
+  await startSession(p);
+  check('H1c-03: permintaan STT pertama ditahan di browser', await h1Until(async () => hold.entered));
+  const stt0 = S.mock.calls.stt;
+  await p.click('#vbStop'); await sleep(300); hold.release(); await sleep(1800);
+  check('H1c-03: hanya SATU permintaan STT keluar dari halaman', h1cReqs(p, /\/api\/stt/) === 1, h1cReqs(p, /\/api\/stt/));
+  check('H1c-03: server tidak menerima STT; kredit utuh (50)', S.mock.calls.stt === stt0 && (await S.api.credits(code)) === 50, S.mock.calls.stt - stt0);
+  check('H1c-03: pemberitahuan sekali; tidak ada kartu', (await h1Notices(p)) === 1 && (await h1Cards(p)) === 0);
+});
+
+test('H1c-04: TTS: percobaan pertama tidak sampai server, sesi dihentikan, retry TIDAK dikirim; terjemahan selesai dipertahankan', async (b, S) => {
+  const code = await S.api.mkCode(50);
+  const p = await newPage(b, S); await connect(p, S, code); await h1Watch(p);
+  await p.evaluate(() => { document.getElementById('mode').value = 'headset'; document.getElementById('mode').dispatchEvent(new Event('change')); });
+  const hold = h1cFail(p, '**/api/tts', { reach: false });
+  await startSession(p);
+  check('H1c-04: permintaan TTS pertama ditahan di browser', await h1Until(async () => hold.entered));
+  const tts0 = S.mock.calls.tts, plays0 = await p.evaluate(() => window.__plays);
+  await p.click('#vbStop'); await sleep(300); hold.release(); await sleep(1800);
+  check('H1c-04: hanya SATU permintaan TTS keluar dari halaman; server tidak menerima TTS', h1cReqs(p, /\/api\/tts/) === 1 && S.mock.calls.tts === tts0, h1cReqs(p, /\/api\/tts/));
+  check('H1c-04: kartu selesai dipertahankan, tidak ada suara diputar', (await h1Cards(p)) === 1 && (await h1Hist(p)) === 1 && (await p.evaluate(() => window.__plays)) === plays0);
+  check('H1c-04: kredit hanya STT+terjemahan (50-3); pemberitahuan sekali', (await S.api.credits(code)) === 47 && (await h1Notices(p)) === 1, await S.api.credits(code));
+});
+
+test('H1c-05: regresi: retry pada sesi yang MASIH hidup tetap bekerja (percobaan pertama jatuh sebelum server, retry sukses)', async (b, S) => {
+  const code = await S.api.mkCode(50);
+  const p = await newPage(b, S); await connect(p, S, code); await h1Watch(p);
+  const hold = h1cFail(p, '**/api/translate', { reach: false });
+  await startSession(p);
+  check('H1c-05: percobaan pertama ditahan', await h1Until(async () => hold.entered));
+  hold.release();
+  await waitCard(p, 'them', 30000);
+  check('H1c-05: retry dikirim (2 permintaan dari halaman) dan berhasil', h1cReqs(p, /\/api\/translate/) === 2, h1cReqs(p, /\/api\/translate/));
+  check('H1c-05: terjemahan tampil; kredit dipotong sekali (50-3)', (await txt(p, 'article.vb-turn.them [data-k="tr"]')) === 'Bisakah Anda menjelaskan proposal tersebut?' && (await S.api.credits(code)) === 47, await S.api.credits(code));
+  check('H1c-05: tanpa pemberitahuan pembuangan', (await h1Notices(p)) === 0);
+});
+
 (async () => {
   const S = await startAll({ credits: 100 });
   const browser = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--use-file-for-fake-audio-capture=' + S.wav, '--autoplay-policy=no-user-gesture-required'] });
