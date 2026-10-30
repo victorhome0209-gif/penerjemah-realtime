@@ -14,6 +14,7 @@ const suites = [
   { name: 'Backend gaya staging (lokal, tanpa OpenAI)', cmd: ['node', 'tests/staging-check.js', '--local'], parse: o => lulus(o) },
   { name: 'Regresi QA Lab (Chromium)', cmd: ['node', 'tests/regress.js'], browser: true, parse: o => lulus(o) },
   { name: 'E2E Chromium (simulasi)', cmd: ['node', 'tests/e2e/run.js'], browser: true, parse: o => lulus(o) },
+  { name: 'Golden frontend id/en (Chromium)', cmd: ['node', 'tests/e2e/golden.js'], browser: true, parse: o => lulus(o) },
   { name: 'npm audit backend (butuh registri npm)', cwd: 'backend', cmd: ['npm', 'audit', '--omit=dev'], audit: true },
   { name: 'npm audit akar/dev (butuh registri npm)', cmd: ['npm', 'audit'], audit: true }
 ];
