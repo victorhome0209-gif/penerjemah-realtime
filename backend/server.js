@@ -13,7 +13,7 @@ const { modelWarnings } = require('./lib/models');
 const { DataLock } = require('./lib/lock');
 const { HttpError, redact, intIn, bool, cleanText, parseWav, RateLimiter, makeLogger } = require('./lib/util');
 
-const VERSION = '1.1.1';
+const VERSION = '1.2.0';
 
 function createApp(cfg, { logSink } = {}) {
   const store = new Store(cfg.dataDir, { monthlyBudgetUsd: cfg.monthlyBudgetUsd, dailyCalls: cfg.dailyCallsPerCode, maxBalance: cfg.maxBalance, maxCreditsPerOp: cfg.maxCreditsPerOp });

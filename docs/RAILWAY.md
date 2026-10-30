@@ -76,3 +76,12 @@ Rahasia: isi sendiri di Railway. Jangan menempelkannya ke chat, GitHub, atau Git
 
 ## 8. Yang tidak dilakukan
 Tidak membuat proyek Railway, Volume, domain, atau variabel; tidak memasukkan kunci; tidak men-deploy; tidak mengubah DNS. Semuanya menunggu persetujuan Anda.
+
+## Verifikasi otomatis setelah deployment (berbayar tetap mati)
+```
+VB_ADMIN_TOKEN=<token dari Railway, jangan ditempel di chat> node tests/staging-check.js --url https://ALAMAT --origin https://victorhome0209-gif.github.io
+VB_ADMIN_TOKEN=... node tests/staging-check.js --url https://ALAMAT --persist create
+# redeploy/restart layanan di Railway, lalu:
+VB_ADMIN_TOKEN=... node tests/staging-check.js --url https://ALAMAT --persist check
+```
+Skrip menolak jalan bila `/api/health` melaporkan `paid_enabled:true`, tidak pernah memanggil OpenAI, dan menonaktifkan kode ujinya sendiri. Urutan lengkap uji live: `docs/RUNBOOK-UJI-LIVE.md`.
