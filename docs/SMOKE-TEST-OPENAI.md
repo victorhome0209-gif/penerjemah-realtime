@@ -12,7 +12,7 @@ Membuktikan satu putaran nyata: ucapan Indonesia -> teks -> terjemahan Inggris -
 | B. Lawan (Inggris), +-3 dtk | STT x1, terjemahan x1 (tanpa suara; mode Tatap muka) | |
 | Jumlah | 5 panggilan, 7 kredit | |
 
-Estimasi (angka harga dari sumber publik, belum dicocokkan dengan halaman Pricing resmi; cek sebelum mulai):
+Estimasi. Harga STT (US$0,0045/menit) dan terjemahan (gpt-6-luna US$0,10 masukan / US$0,50 keluaran per 1 juta token) sudah dicocokkan dengan halaman model OpenAI (30 Okt 2026). Harga suara per menit TIDAK tercantum di halaman resmi (hanya per token: teks masuk US$0,60, audio keluar US$12,00 per 1 juta), jadi angka suara di bawah tetap perkiraan:
 - STT `gpt-transcribe` sekitar US$0,0045 per menit: 2 x 3 dtk = 0,1 menit, sekitar **US$0,0005**.
 - Terjemahan `gpt-6-luna` sekitar US$0,10 per 1 juta token masukan dan US$0,50 per 1 juta keluaran: 2 panggilan, sekitar **US$0,0001**.
 - Suara `gpt-4o-mini-tts` sekitar US$0,015 per menit: 3 dtk, sekitar **US$0,0008**.

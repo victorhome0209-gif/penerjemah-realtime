@@ -11,6 +11,7 @@ const suites = [
   { name: 'Backend (node --test)', cwd: 'backend', cmd: ['node', '--test', '--test-timeout=60000', ...fs.readdirSync(path.join(ROOT, 'backend', 'test')).filter(f => f.endsWith('.test.js')).map(f => 'test/' + f)], parse: o => ({ pass: +(/^# pass (\d+)/m.exec(o) || [])[1], fail: +(/^# fail (\d+)/m.exec(o) || [])[1] }) },
   { name: 'Pemindai keamanan statis', cmd: ['node', 'tests/static-check.js'], parse: o => lulus(o) },
   { name: 'Inventaris dependensi', cmd: ['node', 'tests/dependency-check.js'], parse: o => lulus(o) },
+  { name: 'Backend gaya staging (lokal, tanpa OpenAI)', cmd: ['node', 'tests/staging-check.js', '--local'], parse: o => lulus(o) },
   { name: 'Regresi QA Lab (Chromium)', cmd: ['node', 'tests/regress.js'], browser: true, parse: o => lulus(o) },
   { name: 'E2E Chromium (simulasi)', cmd: ['node', 'tests/e2e/run.js'], browser: true, parse: o => lulus(o) },
   { name: 'npm audit backend (butuh registri npm)', cwd: 'backend', cmd: ['npm', 'audit', '--omit=dev'], audit: true },
