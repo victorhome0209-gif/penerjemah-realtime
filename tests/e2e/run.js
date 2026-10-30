@@ -973,6 +973,143 @@ test('H2A-09: jalur normal tidak berubah: edit selesai, riwayat diperbarui, puta
   check('H2A-09: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
 });
 
+// ---------------------------------------------------------------------------------------------
+// H2-B: QA Lab punya identitas operasi sendiri (QA.run), TERPISAH dari Conv.gen/Conv.epoch (alur berbeda dari percakapan).
+// Aturan: Berhenti / ganti dialog / sesi penguji baru / hapus catatan / rekam baru saat STT, terjemahan, atau TTS masih berjalan harus mencegah hasil usang
+// menulis LOG, history, laporan, UI, atau memutar audio, dan tidak boleh memicu permintaan/retry baru. Penyerahan hasil otomatis oleh VAD (Listen.once) tetap sah.
+// BATAS: request yang sudah terkirim tidak dapat dibatalkan dan kreditnya tidak kembali otomatis.
+const h2bInit = () => { const g = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices); navigator.mediaDevices.getUserMedia = async c => { if (window.__gumDelay) await new Promise(r => setTimeout(r, window.__gumDelay)); return g(c); }; };
+async function h2bLab(b, S, opts) {
+  const code = await S.api.mkCode(60);
+  const p = await newPage(b, S, opts); await connect(p, S, code);
+  await p.click('#btnSettings'); await p.click('summary:has-text("Alat uji")'); await p.click('#btnOpenLab');
+  await p.fill('#testerName', 'Penguji H2');
+  return { p, code };
+}
+function h2bHold(p, pattern, nth) {   // hanya permintaan ke-nth yang balasannya ditahan (server tetap memproses); lainnya lewat
+  const st = { n: 0, entered: false, release: null }; const gate = new Promise(r => { st.release = r; });
+  p.route(pattern, async route => {
+    const my = ++st.n; if (my !== nth) return route.continue();
+    st.entered = true; const resp = await route.fetch(); await gate; await route.fulfill({ response: resp });
+  });
+  return st;
+}
+const h2bLog = p => p.evaluate(() => JSON.parse(localStorage.getItem('tr_log') || '[]'));
+const h2bMem = p => p.evaluate(() => window.__t.LOG().length);
+const h2bStatus = p => txt(p, '#scriptStatus');
+const h2bResult = async p => (await txt(p, '#scriptResult') || '').length;
+const h2bReqs = (p, re) => p.reqs.filter(r => re.test(r.url)).length;
+const h2bLive = p => p.evaluate(() => window.__streams.filter(s => s.getTracks().some(t => t.readyState === 'live')).length);
+
+test('H2B-01: Berhenti saat STT in-flight lalu Rekam lagi: hasil STT lama tidak diserahkan ke rekaman baru', async (b, S) => {
+  const { p } = await h2bLab(b, S);
+  const hold = h2bHold(p, '**/api/stt**', 1);
+  await p.click('#btnRec');
+  check('H2B-01: STT pertama diproses server, balasan ditahan', await h1Until(async () => hold.entered, 40000));
+  await p.click('#btnRec');                                   // Berhenti
+  await p.click('#btnRec');                                   // Rekam baru
+  check('H2B-01: rekaman baru mendengarkan', await h1Until(async () => await p.evaluate(() => window.__t.Listen.active)), 8000);
+  const tr0 = h2bReqs(p, /\/api\/translate/);
+  hold.release(); await sleep(700);
+  check('H2B-01: hasil STT lama TIDAK memicu terjemahan', h2bReqs(p, /\/api\/translate/) === tr0, h2bReqs(p, /\/api\/translate/) - tr0);
+  check('H2B-01: tidak ada catatan, status bukan "Menerjemahkan…"', (await h2bMem(p)) === 0 && !/Menerjemahkan/.test(await h2bStatus(p)), await h2bStatus(p));
+  check('H2B-01: rekaman baru masih mendengarkan (tidak dihentikan oleh hasil lama)', await p.evaluate(() => window.__t.Listen.active));
+  check('H2B-01: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
+test('H2B-02: ganti dialog saat terjemahan in-flight: tidak ada catatan, history, hasil, atau suara', async (b, S) => {
+  const { p } = await h2bLab(b, S);
+  await p.check('#testSpeak');
+  const hold = h2bHold(p, '**/api/translate', 1);
+  await p.click('#btnRec');
+  check('H2B-02: terjemahan diproses server, balasan ditahan', await h1Until(async () => hold.entered, 40000));
+  const tts0 = S.mock.calls.tts, plays0 = await h2Plays(p), hist0 = await h1Hist(p);
+  await p.selectOption('#scriptSel', 'B'); hold.release(); await sleep(900);
+  check('H2B-02: tidak ada catatan (LOG di memori dan localStorage)', (await h2bMem(p)) === 0 && (await h2bLog(p)).length === 0, (await h2bMem(p)) + '/' + (await h2bLog(p)).length);
+  check('H2B-02: history terjemahan tidak bertambah', (await h1Hist(p)) === hist0, (await h1Hist(p)) + ' vs ' + hist0);
+  check('H2B-02: UI tidak menulis hasil/status "Selesai"', (await h2bResult(p)) === 0 && !/Selesai|Menerjemahkan/.test(await h2bStatus(p)), await h2bStatus(p));
+  check('H2B-02: tidak ada TTS diminta dan tidak ada audio diputar', S.mock.calls.tts === tts0 && (await h2Plays(p)) === plays0, S.mock.calls.tts - tts0);
+  check('H2B-02: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
+test('H2B-03: Hapus catatan saat terjemahan in-flight: catatan yang dihapus tidak hidup kembali', async (b, S) => {
+  const { p } = await h2bLab(b, S);
+  const hold = h2bHold(p, '**/api/translate', 1);
+  await p.click('#btnRec');
+  check('H2B-03: terjemahan ditahan', await h1Until(async () => hold.entered, 40000));
+  await p.click('#expClear'); hold.release(); await sleep(900);
+  check('H2B-03: LOG tetap kosong (memori dan localStorage)', (await h2bMem(p)) === 0 && (await h2bLog(p)).length === 0, (await h2bMem(p)) + '/' + (await h2bLog(p)).length);
+  check('H2B-03: UI tidak menampilkan hasil usang', (await h2bResult(p)) === 0 && !/Selesai/.test(await h2bStatus(p)), await h2bStatus(p));
+  check('H2B-03: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
+test('H2B-04: mulai sesi penguji baru saat terjemahan in-flight: hasil lama tidak masuk sesi mana pun', async (b, S) => {
+  const { p } = await h2bLab(b, S);
+  const hold = h2bHold(p, '**/api/translate', 1);
+  await p.click('#btnRec');
+  check('H2B-04: terjemahan ditahan', await h1Until(async () => hold.entered, 40000));
+  await p.click('#btnNewSession'); hold.release(); await sleep(900);
+  check('H2B-04: tidak ada catatan di sesi lama maupun baru', (await h2bMem(p)) === 0 && (await h2bLog(p)).length === 0, (await h2bMem(p)) + '/' + (await h2bLog(p)).length);
+  check('H2B-04: UI tidak menampilkan hasil usang', (await h2bResult(p)) === 0 && !/Selesai/.test(await h2bStatus(p)), await h2bStatus(p));
+  check('H2B-04: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
+test('H2B-05: TTS QA Lab in-flight lalu ganti dialog: audio tidak diputar, speaking dilepas, UI bersih', async (b, S) => {
+  const { p } = await h2bLab(b, S);
+  await p.check('#testSpeak');
+  const hold = h2bHold(p, '**/api/tts', 1);
+  await p.click('#btnRec');
+  check('H2B-05: TTS diproses server, balasan ditahan', await h1Until(async () => hold.entered, 40000));
+  const plays0 = await h2Plays(p);
+  await p.selectOption('#scriptSel', 'B');
+  hold.release(); await sleep(900);
+  check('H2B-05: audio hasil in-flight TIDAK diputar', (await h2Plays(p)) === plays0, (await h2Plays(p)) + ' vs ' + plays0);
+  check('H2B-05: speaking dilepas', (await p.evaluate(() => window.__t.getSpeaking())) === false);
+  check('H2B-05: UI tidak menulis hasil usang', (await h2bResult(p)) === 0 && !/Selesai/.test(await h2bStatus(p)), await h2bStatus(p));
+  const log = await h2bLog(p);
+  check('H2B-05: catatan yang sudah valid (terjemahan selesai) tidak dihapus, suara ditandai tidak selesai', log.length === 1 && log[0].translation && log[0].voice !== '' && log[0].voice !== 'OpenAI (backend)', JSON.stringify(log.map(x => x.voice)));
+  check('H2B-05: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
+test('H2B-06: Berhenti saat mikrofon masih disiapkan: mikrofon tidak bocor, status tidak ditimpa', async (b, S) => {
+  const { p } = await h2bLab(b, S, { init: h2bInit });
+  await p.evaluate(() => { window.__gumDelay = 1500; });
+  await p.click('#btnRec'); await sleep(150); await p.click('#btnRec');   // Rekam lalu Berhenti sebelum izin mikrofon selesai
+  await sleep(2800);
+  check('H2B-06: tidak ada track mikrofon yang masih hidup', (await h2bLive(p)) === 0, await h2bLive(p));
+  check('H2B-06: Listen tidak aktif, tombol kembali "Rekam"', !(await p.evaluate(() => window.__t.Listen.active)) && /Rekam/.test(await txt(p, '#btnRec')), await txt(p, '#btnRec'));
+  check('H2B-06: status tetap "Dihentikan." (tidak ditimpa "Mendengarkan…")', /Dihentikan/.test(await h2bStatus(p)), await h2bStatus(p));
+  check('H2B-06: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
+test('H2B-07: dua operasi QA bertumpuk: hanya rekaman terbaru yang menulis hasil; hasil lama yang terlambat dibuang', async (b, S) => {
+  const { p } = await h2bLab(b, S);
+  const hold = h2bHold(p, '**/api/translate', 1);
+  await p.click('#btnRec');
+  check('H2B-07: terjemahan operasi 1 ditahan', await h1Until(async () => hold.entered, 40000));
+  await p.click('#btnRec');   // operasi 2 (rekam baru)
+  await p.waitForFunction(() => /Selesai\./.test(document.getElementById('scriptStatus').textContent), null, { timeout: 45000 });
+  check('H2B-07: operasi 2 selesai dan tercatat sekali', (await h2bMem(p)) === 1, await h2bMem(p));
+  const res0 = await txt(p, '#scriptResult');
+  hold.release(); await sleep(900);
+  check('H2B-07: hasil operasi 1 yang terlambat TIDAK menambah catatan', (await h2bMem(p)) === 1 && (await h2bLog(p)).length === 1, (await h2bMem(p)) + '/' + (await h2bLog(p)).length);
+  check('H2B-07: UI hasil tidak berubah oleh operasi lama', (await txt(p, '#scriptResult')) === res0 && /Selesai\./.test(await h2bStatus(p)));
+  check('H2B-07: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
+test('H2B-08: jalur normal tidak berubah: Rekam otomatis berhenti saat VAD menyerahkan hasil, tercatat, UI selesai, suara dimainkan', async (b, S) => {
+  const { p, code } = await h2bLab(b, S);
+  await p.check('#testSpeak');
+  const tts0 = S.mock.calls.tts;
+  await p.click('#btnRec'); const plays0 = await h2Plays(p);   // unlockAudio() saat klik ikut memanggil play(); hitung setelahnya
+  await p.waitForFunction(() => /Selesai\./.test(document.getElementById('scriptStatus').textContent), null, { timeout: 45000 });
+  const log = await h2bLog(p);
+  check('H2B-08: satu catatan lengkap (teks, terjemahan, suara)', log.length === 1 && log[0].heard && log[0].translation && log[0].voiced === true && log[0].voice === 'OpenAI (backend)', JSON.stringify(log[0] || {}).slice(0, 200));
+  check('H2B-08: TTS diminta sekali dan diputar', S.mock.calls.tts === tts0 + 1 && (await h2Plays(p)) === plays0 + 1);
+  check('H2B-08: mendengarkan berhenti otomatis, speaking dilepas, hasil tampil', !(await p.evaluate(() => window.__t.Listen.active)) && !(await p.evaluate(() => window.__t.getSpeaking())) && (await h2bResult(p)) > 10);
+  check('H2B-08: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
 (async () => {
   const S = await startAll({ credits: 100 });
   const browser = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--use-file-for-fake-audio-capture=' + S.wav, '--autoplay-policy=no-user-gesture-required'] });

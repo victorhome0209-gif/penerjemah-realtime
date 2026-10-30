@@ -615,9 +615,11 @@
     constructor(profile, onFrame){ this.profile = profile; this.onFrame = onFrame; this.stream = null; this.ctx = null; }
     async start(){
       this.stream = await navigator.mediaDevices.getUserMedia(micConstraints(this.profile));
+      if(this.stopped){ try{ this.stream.getTracks().forEach(t => t.stop()); }catch(_){} return; }   // H2-B: dihentikan saat izin/mikrofon disiapkan
       const AC = window.AudioContext || window.webkitAudioContext;
       this.ctx = new AC();
       if(this.ctx.state === 'suspended') await this.ctx.resume();
+      if(this.stopped){ this.stop(); return; }
       this.rate = this.ctx.sampleRate;
       this.src = this.ctx.createMediaStreamSource(this.stream);
       this.proc = this.ctx.createScriptProcessor(2048, 1, 1);
@@ -899,10 +901,19 @@
   }
 
   // ================= mendengarkan: satu pintu untuk dua mesin =================
-  const Listen = { active:false, side:null, once:false, onText:null, ui:'test', cap:null, vad:null, timeout:null };
+  const Listen = { active:false, side:null, once:false, onText:null, ui:'test', cap:null, vad:null, timeout:null, seq:0 };
+  // H2-B: QA Lab punya identitas operasi sendiri (QA.run), TERPISAH dari Conv.gen/Conv.epoch. Naik saat Berhenti, rekam baru, ganti dialog/baris,
+  // sesi penguji baru, atau hapus catatan. Hasil operasi lama (STT/terjemahan/TTS) tidak boleh menulis LOG, history, UI, atau memutar audio.
+  // BUKAN dipicu oleh stopListening() otomatis saat VAD menyerahkan hasil (Listen.once): itu penyerahan yang sah.
+  // BATAS: request yang sudah terkirim tidak bisa dibatalkan dan kreditnya TIDAK otomatis kembali.
+  const QA = { run:0, speakRun:null };
+  function qaCancel(){
+    QA.run++;
+    if(QA.speakRun !== null){ QA.speakRun = null; try{ player.pause(); }catch(_){} speaking = false; }   // hanya audio milik QA Lab
+  }
   function micInfo(a){ return a ? { dur:+a.dur.toFixed(1), level_db:Math.round(a.speechDb), noise_db:Math.round(a.noiseDb), snr_db:Math.round(a.snr), clip_pct:+a.clipPct.toFixed(2) } : null; }
-  function deliver(side, text, meta){
-    if(!Listen.active) return;
+  function deliver(side, text, meta, src){
+    if(!Listen.active || (src && Listen.vad !== src)) return;   // H2-B: hasil STT milik rekaman yang sudah berhenti tidak boleh diserahkan ke rekaman baru
     if(Listen.once){ const cb = Listen.onText; stopListening(); cb(side, text, meta); }
     else Listen.onText(side, text, meta);
   }
@@ -914,6 +925,7 @@
     const cap = new Capture(micProfile(), (x, rate) => vadFrame(v, x, rate, side, lang));
     Listen.cap = cap;
     await cap.start();
+    if(Listen.cap !== cap) return;   // H2-B: dihentikan saat mikrofon disiapkan; jangan menimpa status
     setLive('Menyesuaikan suara latar… diam sebentar, lalu bicara.');
   }
   function vadFrame(v, x, rate, side, lang){
@@ -945,18 +957,19 @@
     if(voiced < 350){ setLive('Mendengarkan… (' + cfg[side].label + ')'); return; }
     const samples = concatF32(chunks), info = analyzeFrames(chunks, rate);
     setLive('Mengenali suara…');
-    transcribeUtterance(samples, rate, lang, info, side);
+    transcribeUtterance(samples, rate, lang, info, side, v);
   }
-  async function transcribeUtterance(samples, rate, lang, info, side){
-    const t0 = performance.now();
+  async function transcribeUtterance(samples, rate, lang, info, side, v){
+    const t0 = performance.now(), mine = () => Listen.active && Listen.vad === v;   // H2-B: hanya rekaman yang sama yang boleh menerima hasil/retry
     try{
-      const text = await sttBackend(samples, rate, lang);
+      const text = await sttBackend(samples, rate, lang, mine);
       const ms = Math.round(performance.now() - t0);
-      if(!text || HALLU.test(text)){ if(Listen.active) setLive('Mendengarkan… (' + cfg[side].label + ')'); return; }
-      deliver(side, text, { stt:'backend', stt_ms: ms, mic: micInfo(info) });
+      if(!text || HALLU.test(text)){ if(mine()) setLive('Mendengarkan… (' + cfg[side].label + ')'); return; }
+      deliver(side, text, { stt:'backend', stt_ms: ms, mic: micInfo(info) }, v);
     }catch(e){
+      if(!mine()) return;
       toast('Gagal mengenali suara: ' + e.message);
-      if(Listen.active) setLive('Gagal mengenali suara. Coba lagi.');
+      setLive('Gagal mengenali suara. Coba lagi.');
     }
   }
   async function startListening(side, onText, once, ui){
@@ -964,9 +977,11 @@
     unlockAudio();
     if(!VB.ready()){ setLive(MSG_OFF + ' Hubungkan di Pengaturan.'); toast(MSG_OFF); refreshButtons(); return false; }
     if(!hasMic){ setLive('Browser ini tidak mendukung mikrofon.'); return false; }
+    const seq = ++Listen.seq;
     Object.assign(Listen, { active:true, side, once:!!once, onText, ui: ui || 'test' });
     try{ await startVAD(side); }
-    catch(e){ Listen.active = false; micError(e); refreshButtons(); return false; }
+    catch(e){ if(Listen.seq !== seq || !Listen.active) return null; Listen.active = false; micError(e); refreshButtons(); return false; }
+    if(Listen.seq !== seq || !Listen.active) return null;   // H2-B: dihentikan/diganti saat mikrofon disiapkan; tidak ada timer/keepAwake yang bocor
     if(Listen.once){
       Listen.timeout = setTimeout(() => {
         if(Listen.active){ const cb = Listen.onText, s = Listen.side; stopListening(); cb(s, null, { timeout:true }); }
@@ -1010,10 +1025,14 @@
     });
   }
   const BCP = { id:'id-ID', en:'en-US' };
-  async function speakSmart(text, lang, side){
+  async function speakSmart(text, lang, side, alive){
     const l2 = String(lang).slice(0, 2);
-    try{ await playBlob(await ttsBackend(text, l2)); return 'OpenAI (backend)'; }
-    catch(e){ toast('Suara AI gagal: ' + svcMsg(e)); throw e; }
+    try{
+      const b = await ttsBackend(text, l2, alive);
+      if(alive && !alive()){ const s = new Error('Dibatalkan.'); s.stale = true; throw s; }   // H2-B: audio in-flight dari operasi QA yang sudah batal tidak diputar
+      await playBlob(b); return 'OpenAI (backend)';
+    }
+    catch(e){ if(!(alive && !alive())) toast('Suara AI gagal: ' + svcMsg(e)); throw e; }
   }
 
   function ttsFlags(){ const m = $('mode').value; return { me: m !== 'text', them: m === 'headset' }; }
@@ -1177,7 +1196,7 @@
   };
   $('expClear').onclick = () => {
     if(!confirm('Hapus semua catatan uji di HP ini? Pastikan sudah diunduh.')) return;
-    LOG = []; saveLog(); renderSummary(); renderTestList(); $('scriptResult').textContent = '';
+    qaCancel(); LOG = []; saveLog(); renderSummary(); renderTestList(); $('scriptResult').textContent = '';
     toast('Catatan dihapus');
   };
 
@@ -1193,6 +1212,7 @@
       lastDedupe = { k, t: now };
     }
     const c = cfg[side], t0 = performance.now();
+    const qa = opts.qaRun !== undefined, alive = qa ? () => opts.qaRun === QA.run : () => true;   // H2-B
     if(ui === 'talk') setLive('Menerjemahkan…');
     const entry = { id: Date.now() + '-' + Math.random().toString(36).slice(2, 6), t: new Date().toISOString(),
       tester: $('testerName').value.trim(), session: currentSession(), view: ui, side, target: opts.target || null, ref: opts.ref || null,
@@ -1200,11 +1220,13 @@
       acc: null, tsim: null, line: opts.line || null, dialog: opts.dialog || null, role: opts.role || null, pair: opts.pair || null, voiced: false, spoken_text: '', voice: '', mic: meta.mic || null, pron: null, trans: null, note: '' };
     if(opts.target) entry.acc = Math.round(accuracy(opts.target, text, c.src) * 100);
     try{
-      const r = await translate(text, c.src, c.tgt);
+      const r = await translate(text, c.src, c.tgt, qa ? alive : undefined);
+      if(!alive()) return null;   // H2-B: dibatalkan (Berhenti/ganti dialog/sesi baru/hapus catatan): tidak menulis LOG, history, atau UI
       entry.latency_ms = Math.round(performance.now() - t0);
       entry.translation = r.text; entry.engine = r.engine;
       if(opts.ref) entry.tsim = Math.round(tokenF1(r.text, opts.ref, c.tgt) * 100);
     }catch(e){
+      if(!alive()) return null;
       entry.error = e.message; toast('Gagal menerjemahkan: ' + e.message);
       addLog(entry); if(ui === 'talk') addHist(entry);
       return entry;
@@ -1221,9 +1243,11 @@
       addHist(entry);
     }
     if(wantTts){
+      if(qa) QA.speakRun = opts.qaRun;
       speaking = true; pauseListening(); if(ui === 'talk') setLive('🔊 Berbicara…');
-      try{ entry.voice = await speakSmart(entry.translation, c.ttsLang, side); }catch(_){ entry.voice = 'gagal'; }
-      speaking = false; resumeListening();
+      try{ entry.voice = await speakSmart(entry.translation, c.ttsLang, side, qa ? alive : undefined); }catch(_){ entry.voice = alive() ? 'gagal' : 'dihentikan'; }
+      if(!qa || QA.speakRun === opts.qaRun){ speaking = false; resumeListening(); if(qa) QA.speakRun = null; }   // speaking hanya dilepas oleh pemiliknya
+      if(!alive()){ if(entry.voice === 'OpenAI (backend)') entry.voice = 'dihentikan'; if(LOG.includes(entry)) saveLog(); return null; }
       refreshEntry(entry);
     } else if(ui === 'talk') subDone();
     if(ui === 'talk'){ if(Listen.active) setLive('Mendengarkan… (' + cfg[Listen.side].label + ')'); else setLive('Selesai. Tekan tombol untuk lanjut.'); }
@@ -1829,26 +1853,30 @@
       (e.mic ? `<span>Mikrofon</span><span>${e.mic.level_db} dBFS · SNR ${e.mic.snr_db} dB</span>` : '') + `</div>` + reviewHtml(e) + `</div>`;
   }
   function renderResultIfCurrent(e){ /* tombol sudah diperbarui langsung di DOM */ }
-  $('scriptSel').addEventListener('change', () => { if(Listen.active) stopListening(); Script.mode = $('scriptSel').value; renderScript(); });
+  $('scriptSel').addEventListener('change', () => { if(Listen.active) stopListening(); qaCancel(); Script.mode = $('scriptSel').value; renderScript(); });
   $('btnRestart').onclick = () => {
-    if(Listen.active) stopListening();
+    if(Listen.active) stopListening(); qaCancel();
     Script.idx[Script.mode] = 0; history.length = 0; renderScript(); toast('Dimulai dari baris 1. Konteks percakapan direset.');
   };
-  $('btnPrev').onclick = () => { if(Listen.active) stopListening(); const n = scriptItems().length || 1; Script.idx[Script.mode] = (Script.idx[Script.mode] + n - 1) % n; renderScript(); };
-  $('btnNext').onclick = () => { if(Listen.active) stopListening(); const n = scriptItems().length || 1; Script.idx[Script.mode] = (Script.idx[Script.mode] + 1) % n; renderScript(); };
+  $('btnPrev').onclick = () => { if(Listen.active) stopListening(); qaCancel(); const n = scriptItems().length || 1; Script.idx[Script.mode] = (Script.idx[Script.mode] + n - 1) % n; renderScript(); };
+  $('btnNext').onclick = () => { if(Listen.active) stopListening(); qaCancel(); const n = scriptItems().length || 1; Script.idx[Script.mode] = (Script.idx[Script.mode] + 1) % n; renderScript(); };
   $('btnRec').onclick = async () => {
-    if(Listen.active && Listen.ui === 'test'){ stopListening(); $('scriptStatus').textContent = 'Dihentikan.'; return; }
+    if(Listen.active && Listen.ui === 'test'){ stopListening(); qaCancel(); $('scriptStatus').textContent = 'Dihentikan.'; return; }
     const item = curItem(); if(!item) return;
+    qaCancel(); const run = QA.run;   // H2-B: rekaman baru = operasi baru; hasil operasi sebelumnya yang masih berjalan dibuang
     const line = Script.idx[Script.mode] + 1;
     $('scriptResult').textContent = '';
     $('scriptStatus').textContent = 'Menyiapkan mikrofon… bicaralah setelah muncul "Mendengarkan", lalu diam sebentar.';
     const ok = await startListening(item.side, async (side, text, meta) => {
+      if(run !== QA.run) return;
       if(text === null){ $('scriptStatus').textContent = 'Tidak ada suara terdengar. Coba lagi.'; return; }
       $('scriptStatus').textContent = 'Menerjemahkan…';
-      const e = await handle(side, text, meta, { ui:'test', target:item.t, ref:item.ref || null, speak: $('testSpeak').checked, line, dialog: Script.mode, role: item.role || null, pair: item.n || null });
+      const e = await handle(side, text, meta, { ui:'test', target:item.t, ref:item.ref || null, speak: $('testSpeak').checked, line, dialog: Script.mode, role: item.role || null, pair: item.n || null, qaRun: run });
+      if(run !== QA.run) return;   // H2-B: dibatalkan selama berjalan; jangan menulis UI
       $('scriptStatus').textContent = e ? 'Selesai. Periksa hasilnya di bawah, lalu tekan ▶ untuk baris berikutnya.' : '';
       if(e){ $('scriptResult').innerHTML = resultHtml(e); $('btnNext').classList.add('pri', 'pulse'); }
     }, true, 'test');
+    if(run !== QA.run) return;   // H2-B: dihentikan/diganti saat mikrofon disiapkan
     if(ok) $('scriptStatus').textContent = 'Mendengarkan… bacakan kalimat di atas.';
     else $('scriptStatus').textContent = VB.ready() ? 'Mikrofon tidak bisa dimulai.' : MSG_OFF + ' Hubungkan di Pengaturan.';
   };
@@ -1856,14 +1884,14 @@
   $('btnUseDialog').onclick = () => {
     const items = parseDialog($('customDialog').value);
     lsSet('tr_dialog', $('customDialog').value);
-    Script.custom = items; Script.idx.custom = 0;
+    qaCancel(); Script.custom = items; Script.idx.custom = 0;
     $('customInfo').textContent = items.length ? items.length + ' baris dipakai (' + items.filter(x => x.side === 'me').length + ' giliran Saya, ' + items.filter(x => x.side === 'them').length + ' giliran Lawan).' : 'Tidak ada baris yang terbaca.';
     renderScript(); toast(items.length ? 'Dialog dipakai' : 'Dialog kosong');
   };
   $('customDialog').value = lsGet('tr_dialog') || '';
   Script.custom = parseDialog($('customDialog').value);
   $('btnNewSession').onclick = () => {
-    if(Listen.active) stopListening();
+    if(Listen.active) stopListening(); qaCancel();
     $('sessionName').value = defaultSessionName(); lsSet('tr_session', $('sessionName').value);
     $('testerName').focus(); renderSummary(); renderTestList(); $('scriptResult').textContent = '';
     toast('Sesi baru dimulai. Isi nama penguji.');
