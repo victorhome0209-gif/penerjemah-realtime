@@ -445,6 +445,127 @@ test('QA Lab: terpisah dari tampilan utama dan tetap berfungsi', async (b, S) =>
   await p.context().close();
 });
 
+// ---------------------------------------------------------------------------------------------
+// H1: penjaga sesi. Giliran yang antre atau sedang berjalan saat sesi dihentikan DIBUANG (tidak dirender, tidak masuk riwayat, tidak diputar);
+// hasil yang sudah selesai dipertahankan. Pemberitahuan tampil SEKALI per sesi.
+// BATAS YANG DIKLAIM: request yang sudah terkirim tidak dijamin bisa dibatalkan dan kredit yang terpakai TIDAK otomatis kembali.
+// TIDAK diklaim: maxInflight STT global = 1 antar sesi (tidak ada antrean lintas sesi); retranslate/replay (risiko H2) belum dijaga.
+async function h1Watch(p) {   // hitung pemunculan pemberitahuan "dibuang" pada #toast
+  await p.evaluate(() => {
+    window.__notices = 0;
+    new MutationObserver(() => { if (/dibuang/.test(document.getElementById('toast').textContent)) window.__notices++; })
+      .observe(document.getElementById('toast'), { childList: true, characterData: true, subtree: true });
+  });
+}
+const h1Cards = p => p.evaluate(() => document.querySelectorAll('article.vb-turn').length);
+const h1Hist = p => p.evaluate(() => window.__t.hist().length);
+const h1Notices = p => p.evaluate(() => window.__notices);
+async function h1Until(fn, ms = 25000, step = 100) { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await fn()) return true; await sleep(step); } return false; }
+function h1Hold(p, pattern) {   // server SUDAH memproses (kredit terpotong); balasan ke halaman ditahan sampai release()
+  const st = { entered: false, release: null }; const gate = new Promise(r => { st.release = r; });
+  p.route(pattern, async route => { st.entered = true; const resp = await route.fetch(); await gate; await route.fulfill({ response: resp }); });
+  return st;
+}
+
+test('H1-02: STT sedang berjalan saat sesi dihentikan: hasil dibuang, tanpa terjemahan, kredit STT tetap terpakai', async (b, S) => {
+  const code = await S.api.mkCode(50); const c0 = Object.assign({}, S.mock.completed); S.mock.sttDelay = 3000;
+  try {
+    const p = await newPage(b, S); await connect(p, S, code); await h1Watch(p); await startSession(p);
+    check('H1-02: STT mulai berjalan di server', await h1Until(async () => S.mock.inflight.stt === 1));
+    const tr0 = S.mock.calls.translate;
+    await p.click('#vbStop');
+    check('H1-02: sesi berhenti (idle)', (await state(p)) === 'idle');
+    await h1Until(async () => S.mock.completed.stt >= c0.stt + 1); await sleep(1200);
+    check('H1-02: tidak ada panggilan terjemahan untuk giliran yang dibuang', S.mock.calls.translate === tr0, S.mock.calls.translate - tr0);
+    check('H1-02: tidak ada kartu dan tidak ada riwayat', (await h1Cards(p)) === 0 && (await h1Hist(p)) === 0, (await h1Cards(p)) + '/' + (await h1Hist(p)));
+    check('H1-02: pemberitahuan tampil tepat sekali', (await h1Notices(p)) === 1, await h1Notices(p));
+    check('H1-02: kredit STT yang sudah terkirim TIDAK kembali otomatis (50-2)', (await S.api.credits(code)) === 48, await S.api.credits(code));
+    check('H1-02: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+  } finally { S.mock.sttDelay = 0; }
+});
+
+test('H1-01: giliran yang antre tidak pernah memulai STT setelah sesi dihentikan; pemberitahuan sekali meski ada dua giliran dibuang', async (b, S) => {
+  const code = await S.api.mkCode(50); const c0 = Object.assign({}, S.mock.completed); S.mock.sttDelay = 2500;
+  try {
+    const p = await newPage(b, S); await connect(p, S, code); await h1Watch(p); await startSession(p);
+    check('H1-01: STT pertama berjalan di server', await h1Until(async () => S.mock.inflight.stt === 1));
+    const stt0 = S.mock.calls.stt;
+    await p.evaluate(() => { const x = new Float32Array(48000 * 1.4); for (let i = 0; i < x.length; i++) x[i] = 0.3 * Math.sin(2 * Math.PI * 220 * i / 48000); window.__t.onThem(x, 48000, window.__t.analyzeFrames([x], 48000)); });
+    check('H1-01: giliran kedua tersusun di antrean (kartu ada)', (await h1Cards(p)) >= 2, await h1Cards(p));
+    await p.click('#vbStop');
+    await h1Until(async () => S.mock.completed.stt >= c0.stt + 1); await sleep(1500);
+    check('H1-01: STT tidak bertambah untuk giliran antre (hanya yang sudah berjalan)', S.mock.calls.stt === stt0, S.mock.calls.stt - stt0);
+    check('H1-01: tidak ada kartu, riwayat kosong', (await h1Cards(p)) === 0 && (await h1Hist(p)) === 0);
+    check('H1-01: pemberitahuan SEKALI per sesi walau dua giliran dibuang', (await h1Notices(p)) === 1, await h1Notices(p));
+    check('H1-01: kredit hanya untuk STT yang sudah terkirim (50-2)', (await S.api.credits(code)) === 48, await S.api.credits(code));
+  } finally { S.mock.sttDelay = 0; }
+});
+
+test('H1-03: terjemahan sedang berjalan saat sesi dihentikan: hasil dibuang, tanpa kartu/riwayat/suara', async (b, S) => {
+  const code = await S.api.mkCode(50); const c0 = Object.assign({}, S.mock.completed);
+  const p = await newPage(b, S); await connect(p, S, code); await h1Watch(p);
+  const hold = h1Hold(p, '**/api/translate');
+  await startSession(p);
+  check('H1-03: permintaan terjemahan sudah diproses server dan balasannya ditahan', await h1Until(async () => hold.entered && S.mock.completed.translate >= c0.translate + 1));
+  const tts0 = S.mock.calls.tts, plays0 = await p.evaluate(() => window.__plays);
+  await p.click('#vbStop'); await sleep(300); hold.release(); await sleep(1500);
+  check('H1-03: tidak ada kartu dan tidak ada riwayat', (await h1Cards(p)) === 0 && (await h1Hist(p)) === 0, (await h1Cards(p)) + '/' + (await h1Hist(p)));
+  check('H1-03: tidak ada suara diminta atau diputar', S.mock.calls.tts === tts0 && (await p.evaluate(() => window.__plays)) === plays0);
+  check('H1-03: pemberitahuan sekali', (await h1Notices(p)) === 1, await h1Notices(p));
+  check('H1-03: kredit tetap terpakai (50-3), tidak kembali otomatis', (await S.api.credits(code)) === 47, await S.api.credits(code));
+  check('H1-03: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
+test('H1-04: TTS sedang berjalan saat sesi dihentikan: terjemahan selesai DIPERTAHANKAN, audio dibuang dan tidak diputar', async (b, S) => {
+  const code = await S.api.mkCode(50); const c0 = Object.assign({}, S.mock.completed);
+  const p = await newPage(b, S); await connect(p, S, code); await h1Watch(p);
+  await p.evaluate(() => { document.getElementById('mode').value = 'headset'; document.getElementById('mode').dispatchEvent(new Event('change')); });
+  const hold = h1Hold(p, '**/api/tts');
+  await startSession(p);
+  check('H1-04: TTS sudah diproses server dan balasannya ditahan', await h1Until(async () => hold.entered && S.mock.completed.tts >= c0.tts + 1));
+  const plays0 = await p.evaluate(() => window.__plays);
+  await p.click('#vbStop'); await sleep(300); hold.release(); await sleep(1500);
+  check('H1-04: kartu dengan terjemahan selesai dipertahankan (1 kartu, 1 riwayat)', (await h1Cards(p)) === 1 && (await h1Hist(p)) === 1, (await h1Cards(p)) + '/' + (await h1Hist(p)));
+  check('H1-04: terjemahan di kartu terisi', (await txt(p, 'article.vb-turn.them [data-k="tr"]')) === 'Bisakah Anda menjelaskan proposal tersebut?');
+  check('H1-04: audio hasil in-flight tidak diputar setelah sesi berhenti', (await p.evaluate(() => window.__plays)) === plays0, (await p.evaluate(() => window.__plays)) + ' vs ' + plays0);
+  check('H1-04: tidak ada pesan "Suara gagal" pada kartu', !/Suara gagal/.test(await txt(p, 'article.vb-turn.them') || ''));
+  check('H1-04: pemberitahuan sekali', (await h1Notices(p)) === 1, await h1Notices(p));
+  check('H1-04: kredit (50-4: STT 2, terjemahan 1, suara 1) tidak kembali', (await S.api.credits(code)) === 46, await S.api.credits(code));
+});
+
+test('H1-05: hasil yang sudah selesai dipertahankan saat sesi dihentikan; tanpa pemberitahuan', async (b, S) => {
+  const code = await S.api.mkCode(50); const c0 = Object.assign({}, S.mock.completed);
+  const p = await newPage(b, S); await connect(p, S, code); await h1Watch(p); await startSession(p);
+  await waitCard(p, 'them', 30000); await sleep(800);
+  await p.click('#vbStop'); await sleep(800);
+  check('H1-05: kartu selesai tetap ada, riwayat 1', (await h1Cards(p)) === 1 && (await h1Hist(p)) === 1, (await h1Cards(p)) + '/' + (await h1Hist(p)));
+  check('H1-05: isi kartu utuh', (await txt(p, 'article.vb-turn.them [data-k="tr"]')) === 'Bisakah Anda menjelaskan proposal tersebut?');
+  check('H1-05: tidak ada pemberitahuan (tidak ada yang dibuang)', (await h1Notices(p)) === 0, await h1Notices(p));
+  check('H1-05: kredit sesuai (50-3)', (await S.api.credits(code)) === 47, await S.api.credits(code));
+});
+
+test('H1-06: hasil sesi lama dibuang walau sesi baru sudah berjalan; sesi baru normal (TIDAK menegaskan maxInflight STT global)', async (b, S) => {
+  const code = await S.api.mkCode(50); const c0 = Object.assign({}, S.mock.completed); S.mock.sttDelay = 3000;
+  try {
+    const p = await newPage(b, S); await connect(p, S, code); await h1Watch(p); await startSession(p);
+    check('H1-06: STT sesi A berjalan', await h1Until(async () => S.mock.inflight.stt === 1));
+    await p.click('#vbStop');
+    await p.click('#vbMic');
+    await p.waitForFunction(() => document.getElementById('vbStatus').dataset.s === 'listen' || document.getElementById('vbConsent').classList.contains('open'), null, { timeout: 8000 });
+    if (await p.evaluate(() => document.getElementById('vbConsent').classList.contains('open'))) { await p.click('#vbConsentOk'); }
+    await p.waitForFunction(() => document.getElementById('vbStatus').dataset.s === 'listen', null, { timeout: 8000 });
+    const trA = S.mock.calls.translate;
+    await h1Until(async () => S.mock.completed.stt >= c0.stt + 1); await sleep(1200);
+    check('H1-06: hasil sesi A dibuang: tidak ada terjemahan untuknya', S.mock.calls.translate === trA, S.mock.calls.translate - trA);
+    check('H1-06: tidak ada kartu milik sesi A di daftar sesi B', (await p.evaluate(() => document.querySelectorAll('article.vb-turn.them [data-k="tr"]:not(.dim)').length)) === 0);
+    check('H1-06: pemberitahuan sekali untuk sesi A', (await h1Notices(p)) === 1, await h1Notices(p));
+    S.mock.sttDelay = 300;
+    await waitCard(p, 'them', 40000);
+    check('H1-06: sesi B menyelesaikan giliran normal', (await txt(p, 'article.vb-turn.them [data-k="tr"]')) === 'Bisakah Anda menjelaskan proposal tersebut?');
+    check('H1-06: tidak ada galat JS', p.errors.length === 0, p.errors.join('|'));
+  } finally { S.mock.sttDelay = 0; }
+});
+
 (async () => {
   const S = await startAll({ credits: 100 });
   const browser = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--use-file-for-fake-audio-capture=' + S.wav, '--autoplay-policy=no-user-gesture-required'] });

@@ -1300,6 +1300,20 @@
   const canTab = () => !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) && !IS_MOBILE;
   function enqueue(job){ Conv.chain = Conv.chain.then(job).catch(e => { try{ toast('Terjadi kesalahan: ' + (e && e.message)); }catch(_){} }); }
 
+  // ---- H1: penjaga sesi ----
+  // Giliran yang antre atau sedang berjalan saat sesi dihentikan DIBUANG (tidak dirender, tidak masuk riwayat, tidak diputar);
+  // hasil yang sudah selesai dipertahankan. Pemberitahuan tampil sekali per sesi.
+  // BATAS: request yang sudah terkirim tidak dijamin bisa dibatalkan dan kredit yang sudah terpakai TIDAK otomatis kembali.
+  // BELUM dijaga (risiko H2): retranslate dan replay (aksi per kartu). Tidak ada antrean lintas sesi: maxInflight STT global tidak dijamin 1.
+  const sessionLive = gen => gen === Conv.gen && Conv.on;
+  const DISCARD = { gen: -1, n: 0, notices: 0 };
+  function noteDiscard(gen){
+    if(DISCARD.gen !== gen){ DISCARD.gen = gen; DISCARD.n = 0; DISCARD.notices = 0; }
+    DISCARD.n++;
+    if(DISCARD.notices === 0){ DISCARD.notices = 1; toast('Sesi dihentikan. Ucapan yang sedang diproses dibuang. Permintaan yang sudah terkirim tidak bisa dibatalkan dan kreditnya tidak otomatis kembali.'); }
+  }
+  function discardTurn(K, gen){ try{ if(K) K.remove(); }catch(_){} noteDiscard(gen); }
+
   function stateText(s){
     const talkHint = 'Ketuk untuk mulai berbicara (dalam Bahasa Indonesia)';
     if(s === 'listen'){
@@ -1456,22 +1470,27 @@
   });
 
   // ---- memproses satu giliran ----
-    async function speakFor(K, side, text, lang){
+    async function speakFor(K, side, text, lang, gen){
     speaking = true; if(side === 'me') setState('out');
-    try{ const b = await ttsBackend(text, lang); K.rec.audio = b; await playBlob(b); }
-    catch(e){ K.fail('Suara gagal: ' + svcMsg(e)); }
+    try{
+      const b = await ttsBackend(text, lang);
+      if(gen !== undefined && !sessionLive(gen)){ noteDiscard(gen); return; }   // H1: audio in-flight dibuang; tidak menyentuh keadaan sesi lain
+      K.rec.audio = b; await playBlob(b);
+    }
+    catch(e){ if(gen !== undefined && !sessionLive(gen)){ noteDiscard(gen); return; } K.fail('Suara gagal: ' + svcMsg(e)); }
     speaking = false; Conv.cool = Date.now() + 700;
   }
   async function completeTurn(K, side, text, gen){
     const c = cfg[side];
+    if(!sessionLive(gen)){ discardTurn(K, gen); return false; }                 // H1: tidak memulai terjemahan untuk sesi yang sudah berhenti
     K.setOrig(text); K.status('Menerjemahkan…');
     let r;
     try{ r = await translate(text, c.src, c.tgt); }
-    catch(e){ K.fail('Gagal menerjemahkan: ' + svcMsg(e) + ' (ketuk ✎ untuk coba lagi)'); return false; }
+    catch(e){ if(!sessionLive(gen)){ discardTurn(K, gen); return false; } K.fail('Gagal menerjemahkan: ' + svcMsg(e) + ' (ketuk ✎ untuk coba lagi)'); return false; }
+    if(!sessionLive(gen)){ discardTurn(K, gen); return false; }                 // H1: hasil terjemahan in-flight dibuang (kredit sudah terpakai)
     history.push({ id: K.rec.id, side, orig: text, tr: r.text });
     K.setTr(r.text); K.rec.engine = r.engine; K.status(''); histSave();
-    if(gen !== Conv.gen || !Conv.on) return true;
-    if(ttsFlags()[side]) await speakFor(K, side, r.text, c.tgt);
+    if(ttsFlags()[side]) await speakFor(K, side, r.text, c.tgt, gen);
     return true;
   }
   function backToListen(gen){
@@ -1480,19 +1499,23 @@
     if(Conv.vadThem) Conv.vadThem.reset();
   }
   async function runThem(K, samples, rate, info, gen){
+    if(!sessionLive(gen)){ discardTurn(K, gen); return; }                       // H1: giliran antre milik sesi lama tidak memulai STT
     K.status('Mengenali suara…');
     let text;
     try{ text = await sttBackend(samples, rate, 'en'); }
-    catch(e){ K.remove(); showHint('Gagal mengenali suara lawan: ' + svcMsg(e)); return; }
+    catch(e){ if(!sessionLive(gen)){ discardTurn(K, gen); return; } K.remove(); showHint('Gagal mengenali suara lawan: ' + svcMsg(e)); return; }
+    if(!sessionLive(gen)){ discardTurn(K, gen); return; }                       // H1: hasil STT in-flight dibuang
     if(!text || HALLU.test(text)){ K.remove(); return; }
     K.meta(micLine(info));
     await completeTurn(K, 'them', text, gen);
   }
   async function runMe(K, samples, rate, info, gen){
+    if(!sessionLive(gen)){ discardTurn(K, gen); return; }                       // H1: giliran antre milik sesi lama tidak memulai STT
     K.status('Mengenali suara…');
     let text;
     try{ text = await sttBackend(samples, rate, 'id'); }
-    catch(e){ K.remove(); showHint('Gagal mengenali suara Anda: ' + svcMsg(e)); backToListen(gen); return; }
+    catch(e){ if(!sessionLive(gen)){ discardTurn(K, gen); return; } K.remove(); showHint('Gagal mengenali suara Anda: ' + svcMsg(e)); backToListen(gen); return; }
+    if(!sessionLive(gen)){ discardTurn(K, gen); return; }                       // H1: hasil STT in-flight dibuang
     if(!text || HALLU.test(text)){ K.remove(); showHint('Ucapan tidak terdengar jelas. Ketuk Saya Bicara dan coba lagi.'); backToListen(gen); return; }
     K.meta(micLine(info));
     await completeTurn(K, 'me', text, gen);
@@ -1966,7 +1989,7 @@
 
   if(window.__TEST__) window.__t = { DIALOGS, hist: () => history, sub, subShow, subSet, subByChar, subDone, handle, ttsFlags, Listen, startListening, stopListening, LOG: () => LOG,
     normText, wer, accuracy, tokenF1, diffHtml, parseDialog, analyzeFrames, verdictFor, encodeWav, resample, buildCsv, buildText, buildTranscript, scopeLogs, SCRIPTS, Script, scriptItems, showView,
-    Conv, VB, VAD, StreamTap, renderVoiceGate, FEATURES, CONV, CARDS, newCard, setState, startSession, endSession, onMainButton, vbCall, translate, sttBackend, ttsBackend, purgeLegacyKeys, transcriptText, sessObj, histRead, clearSession, onThem, onMeSpeech, completeTurn };
+    Conv, VB, VAD, StreamTap, renderVoiceGate, FEATURES, CONV, CARDS, newCard, setState, startSession, endSession, onMainButton, vbCall, translate, sttBackend, ttsBackend, purgeLegacyKeys, transcriptText, sessObj, histRead, clearSession, onThem, onMeSpeech, completeTurn, runThem, runMe, sessionLive, DISCARD };
 })();
 </script>
 </body>
