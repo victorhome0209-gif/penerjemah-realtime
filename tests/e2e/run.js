@@ -817,6 +817,162 @@ test('KA-10: pemberitahuan menyebut penyebab yang benar (Hapus sesi vs sesi dihe
   } finally { S.mock.sttDelay = 0; }
 });
 
+// ---------------------------------------------------------------------------------------------
+// H2-A: aksi per kartu (Terjemahkan ulang, Putar ulang). Aturan: hasil operasi lama tidak boleh menulis kartu, riwayat, konteks,
+// rec.audio, memutar audio, atau mengubah speaking/Conv.cool milik operasi lain; edit TERBARU menang; tidak ada retry setelah invalidasi.
+// BATAS: request yang sudah terkirim tidak dapat dibatalkan dan kreditnya tidak kembali otomatis.
+const h2Sentinel = 3.6e6;
+async function h2Card(b, S) {   // satu kartu "lawan" selesai; giliran otomatis berikutnya dikunci (Conv.cool jauh di depan) agar tes deterministik
+  const code = await S.api.mkCode(60);
+  const p = await newPage(b, S); await connect(p, S, code); await h1Watch(p); await startSession(p); await waitCard(p, 'them', 40000);
+  await p.evaluate(ms => { window.__t.Conv.cool = Date.now() + ms; }, h2Sentinel);
+  return { p, code };
+}
+const h2Cool = p => p.evaluate(() => window.__t.Conv.cool);
+const h2Plays = p => p.evaluate(() => window.__plays);
+const h2Rec = p => p.evaluate(() => { const r = window.__t.CONV[0]; return r && { heard: r.heard, translation: r.translation, corrected: r.corrected, hasAudio: !!r.audio }; });
+const h2Chip = p => p.evaluate(() => { const c = document.querySelector('article.vb-turn [data-k="chip"]'); return c ? c.textContent : null; });
+const h2Orig = p => txt(p, 'article.vb-turn [data-k="orig"]');
+const h2Tr = p => txt(p, 'article.vb-turn [data-k="tr"]');
+async function h2Edit(p, text) {
+  await p.click('article.vb-turn [data-a="edit"]'); await p.fill('article.vb-turn .vb-edit textarea', text); await p.click('article.vb-turn .vb-edit .pri');
+}
+const h2Play = p => p.click('article.vb-turn [data-a="play"]');
+function h2Hold(p, pattern, pred) {   // balasan ditahan hanya untuk permintaan yang cocok pred(postData); lainnya lewat
+  const st = { entered: 0, release: null }; const gate = new Promise(r => { st.release = r; });
+  p.route(pattern, async route => {
+    if (!pred(route.request().postData() || '')) return route.continue();
+    st.entered++; const resp = await route.fetch(); await gate; await route.fulfill({ response: resp });
+  });
+  return st;
+}
+const h2Badge = async p => { const m = /(\d+) kredit/.exec(await txt(p, '#planBadge') || ''); return m ? +m[1] : null; };
+
+test('H2A-01: Hapus sesi saat Terjemahkan ulang in-flight: kartu tidak kembali, riwayat/konteks bersih, kredit tetap akurat', async (b, S) => {
+  const { p, code } = await h2Card(b, S);
+  const hold = h2Hold(p, '**/api/translate', d => /EditSatu/.test(d));
+  await h2Edit(p, 'EditSatu');
+  check('H2A-01: terjemahan ulang diproses server, balasan ditahan', await h1Until(async () => hold.entered === 1));
+  await kClear(p); hold.release(); await sleep(900);
+  check('H2A-01: tidak ada kartu, riwayat, dan konteks', (await h1Cards(p)) === 0 && (await h1Hist(p)) === 0 && (await p.evaluate(() => window.__t.CONV.length)) === 0, (await h1Cards(p)) + '/' + (await h1Hist(p)));
+  check('H2A-01: pemberitahuan pembuangan tepat sekali', (await h1Notices(p)) === 1, await h1Notices(p));
+  check('H2A-01: kredit di lencana = kredit server (respons lama tetap mencatat saldo)', (await h2Badge(p)) === (await S.api.credits(code)), (await h2Badge(p)) + ' vs ' + (await S.api.credits(code)));
+  check('H2A-01: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
+test('H2A-02: edit A lalu edit B (balasan B lebih dulu): yang terbaru menang', async (b, S) => {
+  const { p } = await h2Card(b, S);
+  const hold = h2Hold(p, '**/api/translate', d => /EditAAA/.test(d));
+  await h2Edit(p, 'EditAAA');
+  check('H2A-02: edit A diproses server, balasan ditahan', await h1Until(async () => hold.entered === 1));
+  await h2Edit(p, 'EditBBB');
+  check('H2A-02: edit B selesai lebih dulu', await h1Until(async () => (await h2Tr(p)) === 'T:EditBBB'), await h2Tr(p));
+  hold.release(); await sleep(900);
+  const r = await h2Rec(p), h = await p.evaluate(() => window.__t.hist().map(x => [x.orig, x.tr]));
+  check('H2A-02: balasan A yang terlambat TIDAK menimpa kartu', (await h2Tr(p)) === 'T:EditBBB' && (await h2Orig(p)) === 'EditBBB' && r.translation === 'T:EditBBB' && r.heard === 'EditBBB', JSON.stringify(r));
+  check('H2A-02: riwayat terjemahan memuat edit B, bukan A', h.length === 1 && h[0][0] === 'EditBBB' && h[0][1] === 'T:EditBBB', JSON.stringify(h));
+  check('H2A-02: chip menunjukkan "Dikoreksi"', (await h2Chip(p)) === 'Dikoreksi', await h2Chip(p));
+  check('H2A-02: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
+test('H2A-03: Hapus sesi saat TTS putar-ulang tertahan: audio lama tidak diputar, speaking/cool milik operasi lain tidak diubah', async (b, S) => {
+  const { p } = await h2Card(b, S);
+  const hold = h2Hold(p, '**/api/tts', () => true);
+  await h2Play(p);
+  check('H2A-03: TTS diproses server, balasan ditahan', await h1Until(async () => hold.entered === 1));
+  const plays0 = await h2Plays(p);
+  await kClear(p);
+  await p.evaluate(ms => { window.__t.setSpeaking(true); window.__t.Conv.cool = Date.now() + ms; }, h2Sentinel);   // simulasi operasi BARU yang memegang speaking/cool
+  const cool0 = await h2Cool(p);
+  hold.release(); await sleep(900);
+  check('H2A-03: audio hasil in-flight TIDAK diputar', (await h2Plays(p)) === plays0, (await h2Plays(p)) + ' vs ' + plays0);
+  check('H2A-03: speaking dan Conv.cool milik operasi baru tidak disentuh', (await p.evaluate(() => window.__t.getSpeaking())) === true && (await h2Cool(p)) === cool0);
+  check('H2A-03: kartu tidak kembali', (await h1Cards(p)) === 0 && (await h1Hist(p)) === 0);
+  check('H2A-03: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
+test('H2A-04: Hentikan sesi saat TTS putar-ulang tertahan: tidak diputar, chip tidak macet, audio tidak tersimpan', async (b, S) => {
+  const { p } = await h2Card(b, S);
+  const hold = h2Hold(p, '**/api/tts', () => true);
+  await h2Play(p);
+  check('H2A-04: TTS ditahan', await h1Until(async () => hold.entered === 1));
+  const plays0 = await h2Plays(p);
+  await p.click('#vbStop'); hold.release(); await sleep(900);
+  check('H2A-04: audio hasil in-flight TIDAK diputar', (await h2Plays(p)) === plays0, (await h2Plays(p)) + ' vs ' + plays0);
+  check('H2A-04: audio tidak disimpan ke kartu', (await h2Rec(p)).hasAudio === false);
+  check('H2A-04: chip tidak macet "Menyiapkan suara…"/"Memutar…"', !/Menyiapkan|Memutar/.test(await h2Chip(p)), await h2Chip(p));
+  check('H2A-04: speaking dilepas', (await p.evaluate(() => window.__t.getSpeaking())) === false);
+  check('H2A-04: pemberitahuan sekali', (await h1Notices(p)) === 1, await h1Notices(p));
+  check('H2A-04: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
+test('H2A-05: retry setelah invalidasi: Hapus saat percobaan pertama terjemahan ulang tertahan tidak memicu permintaan baru', async (b, S) => {
+  const { p } = await h2Card(b, S);
+  const drop = h1cFail(p, '**/api/translate', { reach: false });
+  await h2Edit(p, 'EditRetry');
+  check('H2A-05: percobaan pertama ditahan', await h1Until(async () => drop.entered));
+  const n0 = h1cReqs(p, /\/api\/translate/);
+  await kClear(p); await sleep(200); drop.release(); await sleep(1500);
+  check('H2A-05: tidak ada permintaan terjemahan baru (tanpa retry)', h1cReqs(p, /\/api\/translate/) === n0, h1cReqs(p, /\/api\/translate/) - n0);
+  check('H2A-05: tidak ada kartu dan riwayat', (await h1Cards(p)) === 0 && (await h1Hist(p)) === 0);
+});
+
+test('H2A-06: ketuk ▶ saat edit berjalan tidak boleh membuang hasil edit', async (b, S) => {
+  const { p } = await h2Card(b, S);
+  const hold = h2Hold(p, '**/api/translate', d => /EditEnam/.test(d));
+  await h2Edit(p, 'EditEnam');
+  check('H2A-06: edit ditahan', await h1Until(async () => hold.entered === 1));
+  await h2Play(p);
+  check('H2A-06: putar ulang (terjemahan lama) selesai', await h1Until(async () => !(await p.evaluate(() => window.__t.getSpeaking()))) && (await h2Plays(p)) >= 1);
+  hold.release();
+  check('H2A-06: hasil edit tetap diterapkan', await h1Until(async () => (await h2Tr(p)) === 'T:EditEnam'), await h2Tr(p));
+  check('H2A-06: riwayat memuat edit', await p.evaluate(() => window.__t.hist().some(x => x.tr === 'T:EditEnam')));
+  check('H2A-06: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
+test('H2A-07: TTS putar-ulang tertahan lalu edit selesai: audio lama tidak disimpan ataupun diputar', async (b, S) => {
+  const { p } = await h2Card(b, S);
+  const hold = h2Hold(p, '**/api/tts', () => true);
+  await h2Play(p);
+  check('H2A-07: TTS (terjemahan lama) ditahan', await h1Until(async () => hold.entered === 1));
+  const plays0 = await h2Plays(p);
+  await h2Edit(p, 'EditTujuh');
+  check('H2A-07: edit selesai', await h1Until(async () => (await h2Tr(p)) === 'T:EditTujuh'), await h2Tr(p));
+  hold.release(); await sleep(900);
+  check('H2A-07: audio terjemahan lama TIDAK diputar', (await h2Plays(p)) === plays0, (await h2Plays(p)) + ' vs ' + plays0);
+  check('H2A-07: rec.audio tidak berisi audio terjemahan lama', (await h2Rec(p)).hasAudio === false);
+  check('H2A-07: speaking dilepas', (await p.evaluate(() => window.__t.getSpeaking())) === false);
+  check('H2A-07: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
+test('H2A-08: Hentikan sesi saat Terjemahkan ulang in-flight: hasil dibuang, kartu kembali ke teks semula, chip tidak macet', async (b, S) => {
+  const { p } = await h2Card(b, S);
+  const before = await h2Rec(p);
+  const hold = h2Hold(p, '**/api/translate', d => /EditDelapan/.test(d));
+  await h2Edit(p, 'EditDelapan');
+  check('H2A-08: edit ditahan', await h1Until(async () => hold.entered === 1));
+  await p.click('#vbStop'); hold.release(); await sleep(900);
+  const r = await h2Rec(p);
+  check('H2A-08: terjemahan dan teks asli kembali seperti sebelum edit', r.translation === before.translation && r.heard === before.heard && (await h2Orig(p)) === before.heard && (await h2Tr(p)) === before.translation, JSON.stringify(r));
+  check('H2A-08: chip tidak macet "Menerjemahkan ulang…"', !/Menerjemahkan/.test(await h2Chip(p)), await h2Chip(p));
+  check('H2A-08: riwayat tidak berubah', await p.evaluate(b0 => window.__t.hist().every(x => x.tr === b0), before.translation));
+  check('H2A-08: pemberitahuan sekali', (await h1Notices(p)) === 1, await h1Notices(p));
+  check('H2A-08: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
+test('H2A-09: jalur normal tidak berubah: edit selesai, riwayat diperbarui, putar ulang memutar audio baru', async (b, S) => {
+  const { p, code } = await h2Card(b, S);
+  const tts0 = S.mock.calls.tts, plays0 = await h2Plays(p);
+  await h2Edit(p, 'EditNormal');
+  check('H2A-09: terjemahan diperbarui, ditandai dikoreksi', await h1Until(async () => (await h2Tr(p)) === 'T:EditNormal') && (await h2Rec(p)).corrected === true && (await h2Chip(p)) === 'Dikoreksi');
+  check('H2A-09: riwayat diperbarui', await p.evaluate(() => window.__t.hist().some(x => x.orig === 'EditNormal' && x.tr === 'T:EditNormal')));
+  await h2Play(p);
+  check('H2A-09: audio diminta dan diputar', await h1Until(async () => S.mock.calls.tts === tts0 + 1 && (await h2Plays(p)) === plays0 + 1), S.mock.calls.tts - tts0);
+  check('H2A-09: speaking dilepas, chip bersih', await h1Until(async () => !(await p.evaluate(() => window.__t.getSpeaking())) && (await h2Chip(p)) === 'Dikoreksi' || (await h2Chip(p)) === ''), await h2Chip(p));
+  check('H2A-09: kredit lencana = kredit server', (await h2Badge(p)) === (await S.api.credits(code)));
+  check('H2A-09: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
 (async () => {
   const S = await startAll({ credits: 100 });
   const browser = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--use-file-for-fake-audio-capture=' + S.wav, '--autoplay-policy=no-user-gesture-required'] });

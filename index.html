@@ -1307,20 +1307,21 @@
   // Giliran yang antre atau sedang berjalan saat sesi dihentikan DIBUANG (tidak dirender, tidak masuk riwayat, tidak diputar);
   // hasil yang sudah selesai dipertahankan. Pemberitahuan tampil sekali per sesi.
   // BATAS: request yang sudah terkirim tidak dijamin bisa dibatalkan dan kredit yang sudah terpakai TIDAK otomatis kembali.
-  // BELUM dijaga (risiko H2): retranslate dan replay (aksi per kartu). Tidak ada antrean lintas sesi: maxInflight STT global tidak dijamin 1.
+  // H2-A menjaga retranslate dan replay (aksi per kartu), lihat di bawah. Tidak ada antrean lintas sesi: maxInflight STT global tidak dijamin 1.
   const sessionLive = gen => gen === Conv.gen && Conv.on;
   // Koreksi-A: identitas GILIRAN dipisah dari identitas SESI. `gen` = sesi (naik saat mulai/berhenti); `epoch` = naik saat "Hapus sesi" (sesi tetap hidup).
   // Giliran hanya boleh menulis kartu/riwayat/konteks, memutar audio, atau mengubah speaking/Conv.cool/state bila sesinya hidup DAN epoch-nya masih sama.
   const turnLive = (K, gen) => sessionLive(gen) && !!K && K.ep === Conv.epoch;
+  const H2_CARD = { audioOwner: null };   // H2-A: operasi Putar ulang yang memegang speaking/Conv.cool
   // Pemberitahuan pembuangan: SEKALI per (sesi, epoch). Himpunan terbatas (bukan satu nilai), agar hasil berselang-seling A,B,A tidak memberitahu ulang.
   const DISCARD = { n: 0 }, NOTICED = new Set(), NOTICED_MAX = 64;
-  function noteDiscard(gen, ep){
+  function noteDiscard(gen, ep, why){
     DISCARD.n++;
     const key = gen + ':' + (ep == null ? '' : ep);
     if(NOTICED.has(key)) return;
     NOTICED.add(key);
     while(NOTICED.size > NOTICED_MAX) NOTICED.delete(NOTICED.values().next().value);
-    toast((sessionLive(gen) ? 'Sesi dihapus. ' : 'Sesi dihentikan. ') + 'Ucapan yang sedang diproses dibuang. Permintaan yang sudah terkirim tidak bisa dibatalkan dan kreditnya tidak otomatis kembali.');
+    toast(((why ? why === 'hapus' : sessionLive(gen)) ? 'Sesi dihapus. ' : 'Sesi dihentikan. ') + 'Ucapan yang sedang diproses dibuang. Permintaan yang sudah terkirim tidak bisa dibatalkan dan kreditnya tidak otomatis kembali.');
   }
   function discardTurn(K, gen){ try{ if(K) K.remove(); }catch(_){} noteDiscard(gen, K && K.ep); }
 
@@ -1427,7 +1428,7 @@
   }
   function clearSession(){
     // Koreksi-A: invalidasi SEMUA giliran yang sudah ada (antre/in-flight/pemutaran) sebelum menghapus; sesi tetap hidup dan mendengar lagi.
-    Conv.epoch++;
+    Conv.epoch++; H2_CARD.audioOwner = null;
     if(speaking){ skipSpeech(); speaking = false; Conv.cool = Date.now() + 700; }
     else skipSpeech();
     if(Conv.on && (Conv.state === 'proc' || Conv.state === 'out')){ setState('listen'); if(Conv.vadThem) Conv.vadThem.reset(); }
@@ -1444,15 +1445,48 @@
       ta.remove();
     }
   }
+  // H2-A: operasi kartu (Terjemahkan ulang / Putar ulang) ditautkan ke kartu + sesi (gen) + epoch + revisi aksi.
+  // Edit TERBARU menang. Edit membatalkan Putar ulang kartu yang sama (terjemahan berubah); Putar ulang TIDAK membatalkan edit.
+  // Operasi yang dibuang (Hapus sesi, Hentikan/mulai ulang, kartu hilang, disalip) tidak menulis kartu/riwayat/rec.audio, tidak memutar audio,
+  // tidak mengubah speaking/Conv.cool milik operasi lain, dan tidak memulai retry (alive diteruskan ke vbCall).
+  // BATAS: request yang sudah terkirim tidak bisa dibatalkan dan kreditnya TIDAK otomatis kembali (noteCredits tetap mencatat saldo respons lama).
+  // BELUM dijaga: mengedit kartu saat terjemahan GILIRAN aslinya masih berjalan (jalur completeTurn, bukan aksi kartu).
+  function h2Chip(K){ const c = K.el.querySelector('[data-k="chip"]'); return { t: c ? c.textContent : '', bad: !!(c && c.classList.contains('bad')) }; }
+  function h2Op(K, kind){
+    if(!K || CARDS.get(K.rec.id) !== K) return null;
+    if(K.h2Settled === undefined){ K.h2Settled = h2Chip(K); K.h2Heard = K.rec.heard; K.h2Edit = 0; K.h2Play = 0; }   // keadaan "tenang" kartu, untuk dipulihkan bila operasi dibuang
+    if(kind === 'edit'){
+      if(H2_CARD.audioOwner && H2_CARD.audioOwner.K === K){ try{ skipSpeech(); }catch(_){} H2_CARD.audioOwner = null; speaking = false; Conv.cool = Date.now() + 700; }
+      K.h2Edit = (K.h2Edit || 0) + 1;
+    }
+    K.h2Play = (K.h2Play || 0) + 1;                 // edit juga menaikkan ini: Putar ulang yang tertahan untuk terjemahan lama gugur
+    const gen = Conv.gen, epoch = Conv.epoch, sid = Sess.id, e = K.h2Edit || 0, pl = K.h2Play, tr = K.rec.translation;
+    const base = () => CARDS.get(K.rec.id) === K && K.ep === epoch && Conv.gen === gen && Conv.epoch === epoch && Sess.id === sid;
+    const alive = kind === 'edit' ? () => base() && K.h2Edit === e : () => base() && K.h2Play === pl && K.h2Edit === e && K.rec.translation === tr;
+    alive.kind = kind; alive.gen = gen;
+    alive.latest = () => kind === 'edit' ? K.h2Edit === e : (K.h2Play === pl && K.h2Edit === e);   // tidak disalip operasi yang lebih baru pada kartu ini
+    return alive;
+  }
+  function h2Drop(K, alive, notify){
+    if(!alive.latest()) return;                      // disalip: kartu sekarang milik operasi yang lebih baru, jangan disentuh
+    if(CARDS.get(K.rec.id) === K){                   // kartu masih ada (mis. Hentikan): kembali ke keadaan tenang, tidak macet
+      if(alive.kind === 'edit') K.setOrig(K.h2Heard);
+      K.status(K.h2Settled.t, K.h2Settled.bad);
+    }
+    if(notify) noteDiscard(alive.gen, K.ep, Conv.gen === alive.gen ? 'hapus' : 'henti');
+  }
   async function retranslate(K, text){
+    const alive = h2Op(K, 'edit'); if(!alive) return;
     const c = cfg[K.rec.side];
     K.setOrig(text); K.status('Menerjemahkan ulang…');
     try{
-      const r = await translate(text, c.src, c.tgt);
+      const r = await translate(text, c.src, c.tgt, alive);
+      if(!alive()){ h2Drop(K, alive, true); return; }
       K.setTr(r.text); K.rec.corrected = true; K.rec.audio = null; K.rec.engine = r.engine; K.status('Dikoreksi');
+      K.h2Heard = text; K.h2Settled = { t: 'Dikoreksi', bad: false };
       const h = history.find(x => x.id === K.rec.id); if(h){ h.orig = text; h.tr = r.text; }
       histSave();
-    }catch(e){ K.fail('Gagal menerjemahkan: ' + svcMsg(e)); }
+    }catch(e){ if(alive()) K.fail('Gagal menerjemahkan: ' + svcMsg(e)); else h2Drop(K, alive, true); }
   }
   function openEditor(K){
     const box = K.el.querySelector('[data-k="orig"]').parentElement; if(box.querySelector('.vb-edit')) return;
@@ -1466,15 +1500,24 @@
     ok.onclick = () => { const t = ta.value.trim(); if(!t) return; w.remove(); retranslate(K, t); };
   }
   async function replay(K){
+    if(!K || CARDS.get(K.rec.id) !== K) return;
     const rec = K.rec; if(!rec.translation || speaking || Conv.state === 'out') return;
-    const lang = rec.side === 'me' ? 'en' : 'id';
+    const alive = h2Op(K, 'play'), lang = rec.side === 'me' ? 'en' : 'id';
+    const owner = { K }; H2_CARD.audioOwner = owner;   // pemilik speaking/Conv.cool: dilepas oleh Hapus/Hentikan/edit; yang bukan pemilik tidak boleh menyentuhnya
     speaking = true; K.status('Memutar…');
     try{
-      if(!rec.audio){ K.status('Menyiapkan suara…'); rec.audio = await ttsBackend(rec.translation, lang); K.status('Memutar…'); }
+      if(!rec.audio){
+        K.status('Menyiapkan suara…');
+        const audio = await ttsBackend(rec.translation, lang, alive);
+        if(!alive()){ h2Drop(K, alive, true); return; }   // jangan simpan/putar TTS dari kartu/sesi yang sudah tidak berlaku
+        rec.audio = audio; K.status('Memutar…');
+      }
       await playBlob(rec.audio);
-      K.status('');
-    }catch(e){ K.fail('Suara gagal: ' + svcMsg(e)); }
-    speaking = false; Conv.cool = Date.now() + 700;
+      if(alive()){ K.status(''); K.h2Settled = { t: '', bad: false }; } else h2Drop(K, alive, false);
+    }catch(e){ if(alive()) K.fail('Suara gagal: ' + svcMsg(e)); else h2Drop(K, alive, true); }
+    finally{
+      if(H2_CARD.audioOwner === owner){ H2_CARD.audioOwner = null; speaking = false; Conv.cool = Date.now() + 700; }
+    }
   }
   $('convList').addEventListener('click', ev => {
     const b = ev.target.closest('button[data-a]'); if(!b || b.disabled) return;
@@ -1664,7 +1707,7 @@
     Conv.taps.forEach(t => t.stop()); Conv.taps = [];
     [Conv.micStream, Conv.tabStream].forEach(s => { if(s) s.getTracks().forEach(t => { try{ t.onended = null; t.stop(); }catch(_){} }); });
     Conv.micStream = Conv.tabStream = null; Conv.vadThem = Conv.vadMe = null; Conv.tabSeen = 0; Conv.tabOk = false;
-    skipSpeech(); speaking = false;
+    skipSpeech(); speaking = false; H2_CARD.audioOwner = null;
     setMeter('meterTalk', 0); keepAwake(false); stopTimer(); secs = 0; $('timer').textContent = fmt(0);
     setState('idle'); devInfo(); if(msg) setLive(msg);
   }
