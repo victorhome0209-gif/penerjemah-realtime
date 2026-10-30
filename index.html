@@ -1992,7 +1992,8 @@
 
   if(window.__TEST__) window.__t = { DIALOGS, hist: () => history, sub, subShow, subSet, subByChar, subDone, handle, ttsFlags, Listen, startListening, stopListening, LOG: () => LOG,
     normText, wer, accuracy, tokenF1, diffHtml, parseDialog, analyzeFrames, verdictFor, encodeWav, resample, buildCsv, buildText, buildTranscript, scopeLogs, SCRIPTS, Script, scriptItems, showView,
-    Conv, VB, VAD, StreamTap, renderVoiceGate, FEATURES, CONV, CARDS, newCard, setState, startSession, endSession, onMainButton, vbCall, translate, sttBackend, ttsBackend, purgeLegacyKeys, transcriptText, sessObj, histRead, clearSession, onThem, onMeSpeech, completeTurn, runThem, runMe, sessionLive, DISCARD };
+    Conv, VB, VAD, StreamTap, renderVoiceGate, FEATURES, CONV, CARDS, newCard, setState, startSession, endSession, onMainButton, vbCall, translate, sttBackend, ttsBackend, purgeLegacyKeys, transcriptText, sessObj, histRead, clearSession, onThem, onMeSpeech, completeTurn, runThem, runMe, sessionLive, DISCARD,
+    speakFor, noteDiscard, player, getSpeaking: () => speaking, setSpeaking: v => { speaking = !!v; } };
 })();
 </script>
 </body>

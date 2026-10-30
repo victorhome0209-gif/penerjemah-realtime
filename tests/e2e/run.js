@@ -658,6 +658,165 @@ test('H1c-05: regresi: retry pada sesi yang MASIH hidup tetap bekerja (percobaan
   check('H1c-05: tanpa pemberitahuan pembuangan', (await h1Notices(p)) === 0);
 });
 
+// ---------------------------------------------------------------------------------------------
+// KOREKSI-A (temuan audit VB-PATCH-01/02/04): Hapus sesi, kepemilikan state oleh giliran, deduplikasi notifikasi lintas sesi.
+// Aturan: pekerjaan yang dimulai SEBELUM "Hapus sesi" tidak boleh menulis kartu, riwayat, konteks terjemahan, atau memutar audio SESUDAHNYA,
+// tetapi sesi tetap hidup dan mendengar lagi. Hasil yang tiba setelah sesi lama berakhir tidak boleh mengubah speaking/Conv.cool milik sesi baru.
+const kClear = p => p.evaluate(() => document.getElementById('btnDelSession').click());
+const kSpeech = (p, side) => p.evaluate(s => { const x = new Float32Array(48000 * 1.5); for (let i = 0; i < x.length; i++) x[i] = 0.3 * Math.sin(2 * Math.PI * 220 * i / 48000); (s === 'me' ? window.__t.onMeSpeech : window.__t.onThem)(x, 48000, window.__t.analyzeFrames([x], 48000)); }, side);
+const kHeadset = p => p.evaluate(() => { document.getElementById('mode').value = 'headset'; document.getElementById('mode').dispatchEvent(new Event('change')); });
+const kCtx = p => p.evaluate(() => window.__t.Conv.on);
+
+test('KA-01: Hapus sesi saat STT berjalan: hasil lama tidak muncul lagi (kartu/riwayat/terjemahan), sesi tetap hidup', async (b, S) => {
+  const code = await S.api.mkCode(50); const c0 = Object.assign({}, S.mock.completed); S.mock.sttDelay = 3000;
+  try {
+    const p = await newPage(b, S); await connect(p, S, code); await h1Watch(p); await startSession(p);
+    check('KA-01: STT berjalan di server', await h1Until(async () => S.mock.inflight.stt === 1));
+    const tr0 = S.mock.calls.translate;
+    const oldId = await p.evaluate(() => { const a = document.querySelector('article.vb-turn'); return a && a.dataset.id; });
+    await kClear(p);
+    check('KA-01: setelah Hapus: tidak ada kartu', (await h1Cards(p)) === 0, await h1Cards(p));
+    await h1Until(async () => S.mock.completed.stt >= c0.stt + 1); await sleep(1500);
+    check('KA-01: tidak ada terjemahan diminta untuk giliran yang dihapus', S.mock.calls.translate === tr0, S.mock.calls.translate - tr0);
+    check('KA-01: kartu lama tidak muncul lagi dan tidak masuk riwayat (dinilai per id)', !!oldId && (await p.evaluate(id => !document.querySelector('[data-id="' + id + '"]') && window.__t.hist().every(h => h.id !== id), oldId)), oldId);
+    check('KA-01: sesi tetap hidup dan mendengar (listen)', (await kCtx(p)) === true && (await state(p)) === 'listen', await state(p));
+    check('KA-01: pemberitahuan pembuangan tepat sekali', (await h1Notices(p)) === 1, await h1Notices(p));
+    S.mock.sttDelay = 300;
+    await waitCard(p, 'them', 40000);
+    check('KA-01: giliran BARU setelah Hapus tetap jalan normal (1 kartu, 1 riwayat)', (await h1Cards(p)) === 1 && (await h1Hist(p)) === 1, (await h1Cards(p)) + '/' + (await h1Hist(p)));
+    check('KA-01: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+  } finally { S.mock.sttDelay = 0; }
+});
+
+test('KA-02: Hapus sesi saat terjemahan berjalan: tidak ada kartu, riwayat, konteks, atau suara', async (b, S) => {
+  const code = await S.api.mkCode(50);
+  const p = await newPage(b, S); await connect(p, S, code); await h1Watch(p); await kHeadset(p);
+  const hold = h1Hold(p, '**/api/translate');
+  await startSession(p);
+  check('KA-02: terjemahan diproses server, balasan ditahan', await h1Until(async () => hold.entered && S.mock.completed.translate >= 1));
+  const tts0 = S.mock.calls.tts, plays0 = await p.evaluate(() => window.__plays);
+  await kClear(p); hold.release(); await sleep(1800);
+  check('KA-02: tidak ada kartu dan tidak ada riwayat', (await h1Cards(p)) === 0 && (await h1Hist(p)) === 0, (await h1Cards(p)) + '/' + (await h1Hist(p)));
+  check('KA-02: tidak ada TTS diminta dan tidak ada audio diputar', S.mock.calls.tts === tts0 && (await p.evaluate(() => window.__plays)) === plays0, S.mock.calls.tts - tts0);
+  check('KA-02: konteks terjemahan berikutnya tidak membawa giliran yang dihapus', await p.evaluate(() => window.__t.hist().length === 0 && window.__t.CONV.length === 0));
+  check('KA-02: pemberitahuan sekali', (await h1Notices(p)) === 1, await h1Notices(p));
+  check('KA-02: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
+test('KA-03: Hapus sesi saat TTS in-flight: audio lama tidak diputar, kartu tidak kembali', async (b, S) => {
+  const code = await S.api.mkCode(50);
+  const p = await newPage(b, S); await connect(p, S, code); await h1Watch(p); await kHeadset(p);
+  const hold = h1Hold(p, '**/api/tts');
+  await startSession(p);
+  check('KA-03: TTS diproses server, balasan ditahan', await h1Until(async () => hold.entered && S.mock.completed.tts >= 1));
+  const plays0 = await p.evaluate(() => window.__plays);
+  await kClear(p); hold.release(); await sleep(1800);
+  check('KA-03: audio hasil in-flight TIDAK diputar', (await p.evaluate(() => window.__plays)) === plays0, (await p.evaluate(() => window.__plays)) + ' vs ' + plays0);
+  check('KA-03: tidak ada kartu, riwayat kosong', (await h1Cards(p)) === 0 && (await h1Hist(p)) === 0, (await h1Cards(p)) + '/' + (await h1Hist(p)));
+  check('KA-03: speaking dilepas dan sesi mendengar lagi (listen)', (await p.evaluate(() => window.__t.getSpeaking())) === false && (await state(p)) === 'listen', await state(p));
+  check('KA-03: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
+test('KA-04: Hapus sesi saat retry tertahan: tidak ada permintaan baru setelah Hapus', async (b, S) => {
+  const code = await S.api.mkCode(50);
+  const p = await newPage(b, S); await connect(p, S, code); await h1Watch(p);
+  const hold = h1cFail(p, '**/api/translate', { reach: false });
+  await startSession(p);
+  check('KA-04: percobaan pertama ditahan', await h1Until(async () => hold.entered));
+  const tr0 = S.mock.calls.translate;
+  await kClear(p); await sleep(300); hold.release(); await sleep(1800);
+  check('KA-04: hanya SATU permintaan terjemahan keluar (tanpa retry)', h1cReqs(p, /\/api\/translate/) === 1 && S.mock.calls.translate === tr0, h1cReqs(p, /\/api\/translate/));
+  check('KA-04: tidak ada kartu dan riwayat', (await h1Cards(p)) === 0 && (await h1Hist(p)) === 0);
+  check('KA-04: kredit hanya STT (50-2); tidak terpotong setelah Hapus', (await S.api.credits(code)) === 48, await S.api.credits(code));
+});
+
+test('KA-05: Hapus sesi saat giliran Saya (state proc): state pulih ke listen, tombol aktif, Saya Bicara bisa dipakai lagi', async (b, S) => {
+  const code = await S.api.mkCode(50); S.mock.sttDelay = 2500;
+  try {
+    const p = await newPage(b, S); await connect(p, S, code); await h1Watch(p); await startSession(p);
+    await p.click('#vbMic'); check('KA-05: state me', (await state(p)) === 'me');
+    await kSpeech(p, 'me');
+    const oldId = await p.evaluate(() => { const a = document.querySelector('article.vb-turn.me'); return a && a.dataset.id; });
+    check('KA-05: state proc', (await state(p)) === 'proc', await state(p));
+    await kClear(p);
+    check('KA-05: setelah Hapus state pulih ke listen (tidak macet di proc)', await h1Until(async () => (await state(p)) === 'listen', 1200), await state(p));
+    check('KA-05: tombol utama tidak disabled', (await p.evaluate(() => document.getElementById('vbMic').disabled)) === false);
+    await h1Until(async () => S.mock.inflight.stt === 0, 8000); await sleep(1500);
+    check('KA-05: hasil STT lama tidak memunculkan kartu/riwayat (dinilai per id)', !!oldId && (await p.evaluate(id => !document.querySelector('[data-id="' + id + '"]') && window.__t.hist().every(h => h.id !== id), oldId)), oldId);
+    check('KA-05: hasil lama tidak mengubah state sesi yang sudah pulih (tetap listen)', (await state(p)) === 'listen', await state(p));
+    await p.click('#vbMic'); check('KA-05: Saya Bicara bisa dimulai lagi (state me)', (await state(p)) === 'me', await state(p));
+    check('KA-05: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+  } finally { S.mock.sttDelay = 0; }
+});
+
+test('KA-06: giliran BARU setelah Hapus tidak ikut dibuang dan tidak tercampur dengan giliran lama', async (b, S) => {
+  const code = await S.api.mkCode(50); S.mock.sttDelay = 2500;
+  try {
+    const p = await newPage(b, S); await connect(p, S, code); await h1Watch(p); await startSession(p);
+    check('KA-06: STT lama berjalan', await h1Until(async () => S.mock.inflight.stt === 1));
+    await kClear(p); S.mock.sttDelay = 200;
+    await kSpeech(p, 'them');   // giliran baru, antre di belakang yang lama
+    await h1Until(async () => (await h1Hist(p)) >= 1, 30000); await sleep(1200);
+    check('KA-06: tepat satu kartu selesai dan satu riwayat (milik giliran baru)', (await h1Hist(p)) === 1 && (await p.evaluate(() => document.querySelectorAll('article.vb-turn [data-k="tr"]:not(.dim)').length)) === 1, (await h1Hist(p)) + '/' + (await h1Cards(p)));
+    check('KA-06: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+  } finally { S.mock.sttDelay = 0; }
+});
+
+test('KA-07: speakFor: pemutaran lama yang selesai TERLAMBAT (stop lalu start cepat) tidak mengubah speaking/Conv.cool sesi baru', async (b, S) => {
+  const code = await S.api.mkCode(60);
+  const p = await newPage(b, S, { init: () => { HTMLMediaElement.prototype.pause = function () {}; HTMLMediaElement.prototype.play = function () { window.__plays++; return Promise.resolve(); }; } });
+  await connect(p, S, code); await kHeadset(p); await startSession(p);
+  check('KA-07: sesi A: pemutaran dimulai dan tertahan (pause ditiadakan)', await h1Until(async () => (await p.evaluate(() => window.__plays)) >= 1 && (await p.evaluate(() => window.__t.getSpeaking())) === true));
+  await p.click('#vbStop');
+  await p.evaluate(() => { document.getElementById('mode').value = 'text'; document.getElementById('mode').dispatchEvent(new Event('change')); });
+  await p.click('#vbMic');
+  await p.waitForFunction(() => document.getElementById('vbStatus').dataset.s === 'listen' || document.getElementById('vbConsent').classList.contains('open'), null, { timeout: 8000 });
+  if (await p.evaluate(() => document.getElementById('vbConsent').classList.contains('open'))) await p.click('#vbConsentOk');
+  await p.waitForFunction(() => document.getElementById('vbStatus').dataset.s === 'listen', null, { timeout: 8000 });
+  await p.evaluate(() => { window.__t.setSpeaking(true); window.__t.Conv.cool = 0; });   // keadaan sesi B: sedang berbicara sendiri
+  await p.evaluate(() => window.__t.player.onended && window.__t.player.onended());     // pemutaran sesi A baru selesai sekarang
+  await sleep(500);
+  check('KA-07: speaking milik sesi B tidak dilepas oleh sesi A', (await p.evaluate(() => window.__t.getSpeaking())) === true);
+  check('KA-07: Conv.cool milik sesi B tidak diubah oleh sesi A', (await p.evaluate(() => window.__t.Conv.cool)) === 0, await p.evaluate(() => window.__t.Conv.cool));
+  check('KA-07: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
+test('KA-08: speakFor: Hapus sesi saat audio diputar menghentikan pemutaran; selesai terlambat tidak mengubah state', async (b, S) => {
+  const code = await S.api.mkCode(60);
+  const p = await newPage(b, S, { init: () => { HTMLMediaElement.prototype.pause = function () {}; HTMLMediaElement.prototype.play = function () { window.__plays++; return Promise.resolve(); }; } });
+  await connect(p, S, code); await kHeadset(p); await startSession(p);
+  check('KA-08: audio diputar (tertahan)', await h1Until(async () => (await p.evaluate(() => window.__plays)) >= 1 && (await p.evaluate(() => window.__t.getSpeaking())) === true));
+  await kClear(p);
+  check('KA-08: setelah Hapus: speaking dilepas dan state pulih ke listen', await h1Until(async () => (await p.evaluate(() => window.__t.getSpeaking())) === false && (await state(p)) === 'listen', 3000), await state(p));
+  await p.evaluate(() => { window.__t.setSpeaking(true); window.__t.Conv.cool = 0; });   // giliran baru mulai berbicara
+  await p.evaluate(() => window.__t.player.onended && window.__t.player.onended());     // pemutaran lama selesai terlambat
+  await sleep(500);
+  check('KA-08: pemutaran lama yang terlambat tidak melepas speaking giliran baru', (await p.evaluate(() => window.__t.getSpeaking())) === true);
+  check('KA-08: Conv.cool tidak diubah oleh pemutaran lama', (await p.evaluate(() => window.__t.Conv.cool)) === 0, await p.evaluate(() => window.__t.Conv.cool));
+});
+
+test('KA-09: notifikasi pembuangan: dedup lintas sesi bila hasil berselang-seling A,B,A', async (b, S) => {
+  const p = await newPage(b, S); await h1Watch(p);
+  await p.evaluate(async () => { const n = window.__t.noteDiscard, w = () => new Promise(r => setTimeout(r, 40)); for (const g of [101, 102, 101, 102, 101]) { n(g, 0); await w(); } });
+  await sleep(300);
+  check('KA-09: A,B,A,B,A menghasilkan tepat 2 pemberitahuan (satu per sesi), bukan 5', (await h1Notices(p)) === 2, await h1Notices(p));
+  await sleep(4200);
+  await p.evaluate(() => { for (let g = 200; g < 400; g++) window.__t.noteDiscard(g, 0); });
+  check('KA-09: catatan sesi yang sudah diberitahu dibatasi ukurannya (<= 64)', await p.evaluate(() => typeof window.__t.noticedSize === 'function' && window.__t.noticedSize() <= 64 && window.__t.noticedSize() > 0), await p.evaluate(() => typeof window.__t.noticedSize));
+});
+
+test('KA-10: pemberitahuan menyebut penyebab yang benar (Hapus sesi vs sesi dihentikan)', async (b, S) => {
+  const code = await S.api.mkCode(50); S.mock.sttDelay = 2000;
+  try {
+    const p = await newPage(b, S); await connect(p, S, code); await startSession(p);
+    check('KA-10: STT berjalan', await h1Until(async () => S.mock.inflight.stt === 1));
+    await kClear(p);
+    await p.waitForFunction(() => /dibuang/.test(document.getElementById('toast').textContent), null, { timeout: 8000 });
+    const t = await txt(p, '#toast');
+    check('KA-10: setelah Hapus sesi, pesan tidak menyebut "Sesi dihentikan"', /dihapus/i.test(t) && !/Sesi dihentikan/.test(t), t);
+  } finally { S.mock.sttDelay = 0; }
+});
+
 (async () => {
   const S = await startAll({ credits: 100 });
   const browser = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--use-file-for-fake-audio-capture=' + S.wav, '--autoplay-policy=no-user-gesture-required'] });
