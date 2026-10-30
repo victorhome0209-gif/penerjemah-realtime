@@ -37,7 +37,18 @@ const battery = () => {
 };
 
 (async () => {
-  const oldHtml = execFileSync('git', ['-C', ROOT, 'show', OLD_REF + ':index.html']).toString();
+  // Mode offline: snapshot ZIP tidak punya riwayat Git. VB_OLD_INDEX_HTML menunjuk berkas index.html commit 243b77b;
+  // isinya wajib punya Git blob SHA yang tepat (fail-closed), jika tidak tes berhenti tanpa membandingkan apa pun.
+  const LEGACY_BLOB = '6c9fca1ed9cd318237185e79a844b695d7ce722c';
+  let oldHtml;
+  if (process.env.VB_OLD_INDEX_HTML) {
+    const buf = fs.readFileSync(process.env.VB_OLD_INDEX_HTML);
+    const blob = require('crypto').createHash('sha1').update(Buffer.concat([Buffer.from('blob ' + buf.length + '\0'), buf])).digest('hex');
+    if (blob !== LEGACY_BLOB) { console.error('GAGAL: Git blob SHA berkas legacy ' + blob + ' != ' + LEGACY_BLOB); process.exit(2); }
+    oldHtml = buf.toString();
+  } else {
+    oldHtml = execFileSync('git', ['-C', ROOT, 'show', OLD_REF + ':index.html']).toString();
+  }
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vb-reg-')); fs.writeFileSync(path.join(dir, 'old.html'), oldHtml); fs.copyFileSync(path.join(ROOT, 'index.html'), path.join(dir, 'new.html'));
   const browser = await chromium.launch(); const res = {};
   for (const name of ['old', 'new']) {
