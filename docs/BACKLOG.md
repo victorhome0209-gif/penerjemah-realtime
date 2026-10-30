@@ -48,3 +48,11 @@ Baseline: `origin/vocalbridge-v1.2` @ `4ed671b`, tree `2f84268851c5736491a05045c
 
 ## Catatan perubahan
 - VERSION backend dinaikkan ke `1.2.0` (server.js, package.json, package-lock.json); `staging-check.js` memeriksa kesamaannya dengan `/api/health`.
+
+## Rutin otomatis (scheduled task)
+- Dibuat 2026-10-30 01:49 UTC atas permintaan pemilik: "VocalBridge V1.2 — siklus kesiapan uji nyata (tiap 4 jam)", cron `49 */4 * * *` (UTC), sesi cloud baru tiap run, mode persetujuan otomatis.
+- Run pertama dijadwalkan 2026-10-30 04:49 UTC. **Status: TERPASANG, BELUM TERBUKTI BERJALAN** sampai ada `last_run` berstatus sukses pada jadwal itu (lihat daftar scheduled task akun). Jangan klaim "berjalan 24/7" sebelum bukti itu ada.
+- Batas kuota: penggunaan per run tidak dapat dibatasi dari sini; run yang semua butirnya BLOCKED hanya melakukan pemeriksaan baca-saja singkat. Pemilik memantau penggunaan di pengaturan akun. NOT VERIFIED: besaran konsumsi kuota nyata.
+- Hentikan rutin: komentar `HENTIKAN RUTIN` dari pemilik di PR #2 (run berikutnya berhenti), atau jeda/hapus scheduled task di pengaturan akun.
+- Larangan rutin: tanpa merge, deploy, panggilan OpenAI berbayar, secret, force-push, perubahan `main`/`vocalbridge-v1.1`/`vocalbridge-v1.2`, proyek lain, atau perubahan jadwal.
+
