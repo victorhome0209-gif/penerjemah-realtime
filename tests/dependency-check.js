@@ -43,4 +43,16 @@ console.log('INFO  GitHub Actions: ' + uses.join(', ') + (warn.length ? '  [sara
 check('Actions: tidak memakai secrets', !/secrets\./.test(wf));
 check('Actions: tidak ada langkah deploy (pages/railway/docker push/ssh/curl POST)', !/deploy-pages|configure-pages|railway|docker\s+push|\bssh\b|curl\s+[^\n]*-X\s*POST/i.test(wf));
 check('Actions: izin hanya contents: read', /permissions:\s*\n\s*contents: read/.test(wf) && !/contents:\s*write|id-token|pages:\s*write/.test(wf));
+check('Actions: CI berjalan untuk branch claude/* dan PR ke vocalbridge-v*', /branches:\s*\[[^\]]*'claude\/\*\*'[^\]]*\]/.test(wf) && /pull_request:\s*\n\s*branches:\s*\[[^\]]*'vocalbridge-v\*'[^\]]*\]/.test(wf));
+check('Actions: gerbang npm audit tetap ada (root --audit-level=high dan backend --omit=dev)', /npm audit --audit-level=high/.test(wf) && /cd backend && npm audit --omit=dev\s*\n/.test(wf));
+{
+  const { summarize } = require('./audit-summary');
+  const clean = summarize(JSON.stringify({ metadata: { vulnerabilities: { info: 0, low: 0, moderate: 0, high: 0, critical: 0, total: 0 }, dependencies: { prod: 0, dev: 2, total: 2 } } }), 'root');
+  const vuln = summarize(JSON.stringify({ metadata: { vulnerabilities: { info: 0, low: 1, moderate: 0, high: 2, critical: 0, total: 3 }, dependencies: { prod: 0, dev: 2, total: 2 } } }), 'root');
+  const neterr = summarize(JSON.stringify({ error: { code: 'ENOTFOUND', summary: 'audit endpoint returned an error' } }), 'root');
+  const junk = summarize('bukan json', 'root');
+  check('audit-summary: laporan bersih = notice dan memuat jumlah', clean.level === 'notice' && /total=0/.test(clean.text) && /dev=2/.test(clean.text), clean.text);
+  check('audit-summary: ada kerentanan = warning dan memuat rincian tingkat', vuln.level === 'warning' && /high=2/.test(vuln.text) && /total=3/.test(vuln.text), vuln.text);
+  check('audit-summary: audit tidak selesai atau keluaran rusak dilaporkan sebagai tidak selesai, bukan bersih', neterr.level === 'warning' && /TIDAK selesai/.test(neterr.text) && junk.level === 'warning' && !/total=0/.test(junk.text), neterr.text + ' | ' + junk.text);
+}
 console.log('\n' + ok + '/' + (ok + bad) + ' lulus'); process.exit(bad ? 1 : 0);

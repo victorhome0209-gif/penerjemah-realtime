@@ -3,9 +3,9 @@
 name: tes
 on:
   push:
-    branches: [main, 'vocalbridge-v*']
+    branches: [main, 'vocalbridge-v*', 'claude/**']
   pull_request:
-    branches: [main]
+    branches: [main, 'vocalbridge-v*']
 permissions:
   contents: read
 concurrency:
@@ -25,6 +25,9 @@ jobs:
       - run: cd backend && node --test test/*.test.js
       - run: node tests/dependency-check.js
       - run: cd backend && npm audit --omit=dev
+      # Hanya pelaporan (anotasi terbaca lewat API). Gerbang audit adalah langkah npm audit di atas; langkah ini tidak menggantikannya.
+      - if: always()
+        run: cd backend && (npm audit --omit=dev --json > "$RUNNER_TEMP/audit-backend.json" 2>/dev/null || true) && node ../tests/audit-summary.js backend "$RUNNER_TEMP/audit-backend.json"
   e2e-chromium:
     name: Chromium end-to-end (Playwright)
     runs-on: ubuntu-latest
@@ -40,6 +43,9 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: node tests/run-all.js
       - run: npm audit --audit-level=high
+      # Hanya pelaporan: jumlah kerentanan root/dev (semua tingkat) sebagai anotasi. Gerbang audit adalah dua langkah npm audit di atas.
+      - if: always()
+        run: (npm audit --json > "$RUNNER_TEMP/audit-root.json" 2>/dev/null || true) && node tests/audit-summary.js root "$RUNNER_TEMP/audit-root.json"
       - if: always()
         uses: actions/upload-artifact@v4
         with:
