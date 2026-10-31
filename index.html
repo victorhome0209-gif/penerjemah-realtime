@@ -270,8 +270,8 @@
     <div class="scroll">
       <div class="card">
         <h3>Data penguji</h3>
-        <label>Nama penguji</label>
-        <input id="testerName" type="text" placeholder="contoh: Budi" autocomplete="off">
+        <label>Nama penguji <b>(wajib diisi sebelum merekam)</b></label>
+        <input id="testerName" type="text" placeholder="contoh: Budi" autocomplete="off" maxlength="60" aria-required="true">
         <label>Nama sesi uji</label>
         <input id="sessionName" type="text" autocomplete="off">
         <button class="sm" id="btnNewSession" style="margin-top:8px">➕ Mulai sesi baru (penguji berikutnya)</button>
@@ -1063,9 +1063,29 @@
   try{ LOG = JSON.parse(lsGet('tr_log') || '[]'); }catch(_){ LOG = []; }
   function saveLog(){ lsSet('tr_log', JSON.stringify(LOG.slice(-600))); }
   function currentSession(){ return $('sessionName').value.trim() || 'Sesi tanpa nama'; }
+  // H4: nama penguji WAJIB sebelum rekaman QA Lab. Dirapikan satu kali (spasi awal/akhir/ganda, karakter kontrol, maks 60) lalu dipakai
+  // identik di catatan, ringkasan, CSV, JSON, laporan, transkrip, dan nama berkas. Catatan LAMA tanpa nama tidak dimigrasi; hanya diberi label saat ditampilkan.
+  const NO_NAME = '(tanpa nama)';
+  function cleanTester(v){ return String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60); }
+  function currentTester(){ return cleanTester($('testerName').value); }
+  function testersOf(L){ const u = []; L.forEach(e => { const t = e.tester || ''; if(!u.includes(t)) u.push(t); }); return u; }
+  function testerLabel(t){ return t || NO_NAME; }
+  function sessionsOf(L){ const u = []; L.forEach(e => { if(e.session && !u.includes(e.session)) u.push(e.session); }); return u; }
+  function needTester(){
+    const el = $('testerName'); el.setAttribute('aria-invalid', 'true');
+    $('scriptStatus').textContent = 'Isi Nama penguji dulu (di bagian Data penguji), lalu tekan Rekam.';
+    toast('Isi nama penguji dulu');
+    try{ el.scrollIntoView({ block:'center' }); }catch(_){}
+    el.focus();
+  }
   function defaultSessionName(){
     const d = new Date(), p = n => String(n).padStart(2, '0');
     return 'Sesi ' + d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+  function uniqueSessionName(){
+    const used = sessionsOf(LOG).concat([currentSession()]), base = defaultSessionName();
+    let n = base, i = 2; while(used.includes(n)){ n = base + ' (' + i + ')'; i++; }
+    return n;
   }
   function addLog(e){ LOG.push(e); saveLog(); renderSummary(); renderTestList(); }
   function refreshEntry(e){
@@ -1096,7 +1116,7 @@
     const snr = L.filter(e => e.mic && e.mic.snr_db != null).map(e => e.mic.snr_db);
     const lat = L.filter(e => e.latency_ms != null).map(e => e.latency_ms);
     $('summary').innerHTML =
-      `<span>Penguji</span><span>${esc($('testerName').value.trim() || '–')}</span>` +
+      `<span>Penguji</span><span>${esc(L.length ? testersOf(L).map(testerLabel).join(', ') : (currentTester() || '–'))}</span>` +
       `<span>Kalimat tercatat</span><span>${L.length}</span>` +
       `<span>Kesesuaian ucapan dengan dialog</span><span>${acc.length ? Math.round(mean(acc)) + '% (rata-rata ' + acc.length + ' baris)' : '–'}</span>` +
       `<span>Terjemahan ≈ acuan</span><span>${L.filter(e => e.tsim != null).length ? Math.round(mean(L.filter(e => e.tsim != null).map(e => e.tsim))) + '% (kemiripan kata)' : '–'}</span>` +
@@ -1165,7 +1185,7 @@
     out.push('Jumlah kalimat: ' + L.length + (acc.length ? ' | Ketepatan ucapan rata-rata (naskah): ' + Math.round(mean(acc)) + '%' : ''));
     out.push('');
     L.forEach((e, i) => {
-      out.push('#' + (i + 1) + '  [' + (e.side === 'me' ? 'Saya ID→EN' : 'Lawan EN→ID') + ']  ' + e.tester + ' / ' + e.session + (e.dialog ? '  · Dialog ' + e.dialog + (e.role ? ' ' + e.role + ' ' + e.pair : '') : ''));
+      out.push('#' + (i + 1) + '  [' + (e.side === 'me' ? 'Saya ID→EN' : 'Lawan EN→ID') + ']  ' + testerLabel(e.tester) + ' / ' + e.session + (e.dialog ? '  · Dialog ' + e.dialog + (e.role ? ' ' + e.role + ' ' + e.pair : '') : ''));
       if(e.target) out.push('  Naskah    : ' + e.target + (e.line ? '   (baris dialog ' + e.line + ')' : ''));
       out.push('  Terdengar : ' + e.heard + (e.acc != null ? '   (kesesuaian ucapan ' + e.acc + '%)' : ''));
       out.push('  Terjemahan: ' + (e.translation || '(gagal)'));
@@ -1178,7 +1198,7 @@
     return out.join('\n');
   }
   function buildTranscript(L){
-    const out = ['TRANSKRIP PERCAKAPAN', 'Dibuat: ' + new Date().toLocaleString('id-ID'), 'Penguji: ' + (L[0] && L[0].tester || '-') + ' | Sesi: ' + (L[0] && L[0].session || '-'), ''];
+    const out = ['TRANSKRIP PERCAKAPAN', 'Dibuat: ' + new Date().toLocaleString('id-ID'), 'Penguji: ' + (L.length ? testersOf(L).map(testerLabel).join(', ') : '-') + ' | Sesi: ' + (L.length ? sessionsOf(L).join(', ') || '-' : '-'), ''];
     L.forEach((e, i) => {
       const who = e.side === 'me' ? 'Saya' : 'Lawan', to = e.side === 'me' ? 'Inggris' : 'Indonesia';
       out.push('[' + String(i + 1).padStart(2, '0') + '] ' + who + (e.role ? ' · ' + e.role + ' ' + e.pair : '') + ' (terdengar): ' + e.heard);
@@ -1196,12 +1216,16 @@
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
   }
   function stamp(){ const d = new Date(), p = n => String(n).padStart(2, '0'); return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()); }
-  function fname(ext){ return 'laporan-uji-' + (($('testerName').value.trim() || 'penguji').replace(/[^\w-]+/g, '_')) + '-' + stamp() + '.' + ext; }
+  // H4: nama berkas memakai penguji pada DATA yang diekspor (satu penguji = namanya; campuran atau lama tanpa nama = "penguji"), bukan isi kolom saat ini.
+  function fname(ext, L){
+    const u = testersOf(L || []), safe = u.length === 1 && u[0] ? u[0].replace(/[^\w-]+/g, '_') : '';
+    return 'laporan-uji-' + (/^_*$/.test(safe) ? 'penguji' : safe) + '-' + stamp() + '.' + ext;
+  }
   function needLogs(){ const L = scopeLogs(); if(!L.length){ toast('Belum ada data untuk diekspor'); return null; } return L; }
-  $('expCsv').onclick = () => { const L = needLogs(); if(L) download(fname('csv'), 'text/csv', buildCsv(L)); };
-  $('expTxt').onclick = () => { const L = needLogs(); if(L) download(fname('txt'), 'text/plain', buildText(L)); };
-  $('expTrans').onclick = () => { const L = needLogs(); if(L) download(fname('transkrip.txt').replace('.transkrip.txt', '-transkrip.txt'), 'text/plain', buildTranscript(L)); };
-  $('expJson').onclick = () => { const L = needLogs(); if(L) download(fname('json'), 'application/json', JSON.stringify(L, null, 1)); };
+  $('expCsv').onclick = () => { const L = needLogs(); if(L) download(fname('csv', L), 'text/csv', buildCsv(L)); };
+  $('expTxt').onclick = () => { const L = needLogs(); if(L) download(fname('txt', L), 'text/plain', buildText(L)); };
+  $('expTrans').onclick = () => { const L = needLogs(); if(L) download(fname('transkrip.txt', L).replace('.transkrip.txt', '-transkrip.txt'), 'text/plain', buildTranscript(L)); };
+  $('expJson').onclick = () => { const L = needLogs(); if(L) download(fname('json', L), 'application/json', JSON.stringify(L, null, 1)); };
   $('expCopy').onclick = async () => {
     const L = needLogs(); if(!L) return;
     try{ await navigator.clipboard.writeText(buildText(L)); toast('Laporan disalin'); }catch(_){ toast('Tidak bisa menyalin. Pakai tombol Teks.'); }
@@ -1209,10 +1233,10 @@
   $('expShare').onclick = async () => {
     const L = needLogs(); if(!L) return;
     try{
-      const f = new File([buildText(L)], fname('txt'), { type:'text/plain' });
+      const f = new File([buildText(L)], fname('txt', L), { type:'text/plain' });
       if(navigator.canShare && navigator.canShare({ files:[f] })) await navigator.share({ files:[f], title:'Laporan uji penerjemah' });
       else if(navigator.share) await navigator.share({ title:'Laporan uji penerjemah', text: buildText(L) });
-      else { download(fname('txt'), 'text/plain', buildText(L)); }
+      else { download(fname('txt', L), 'text/plain', buildText(L)); }
     }catch(e){ if(e && e.name !== 'AbortError') toast('Tidak bisa membagikan: ' + e.message); }
   };
   $('expClear').onclick = () => {
@@ -1236,7 +1260,7 @@
     const qa = opts.qaRun !== undefined, alive = qa ? () => opts.qaRun === QA.run : () => true;   // H2-B
     if(ui === 'talk') setLive('Menerjemahkan…');
     const entry = { id: Date.now() + '-' + Math.random().toString(36).slice(2, 6), t: new Date().toISOString(),
-      tester: $('testerName').value.trim(), session: currentSession(), view: ui, side, target: opts.target || null, ref: opts.ref || null,
+      tester: opts.tester !== undefined ? cleanTester(opts.tester) : currentTester(), session: currentSession(), view: ui, side, target: opts.target || null, ref: opts.ref || null,
       heard: text, translation: '', engine: '', stt: meta.stt || (meta.typed ? 'ketik' : ''), latency_ms: null,
       acc: null, tsim: null, line: opts.line || null, dialog: opts.dialog || null, role: opts.role || null, pair: opts.pair || null, voiced: false, spoken_text: '', voice: '', mic: meta.mic || null, pron: null, trans: null, note: '' };
     if(opts.target) entry.acc = Math.round(accuracy(opts.target, text, c.src) * 100);
@@ -1884,6 +1908,10 @@
   $('btnRec').onclick = async () => {
     if(Listen.active && Listen.ui === 'test'){ stopListening(); qaCancel(); $('scriptStatus').textContent = 'Dihentikan.'; return; }
     const item = curItem(); if(!item) return;
+    // H4: nama penguji wajib. Dicek SEBELUM mikrofon dan panggilan AI; tanpa layanan, pesan "belum terhubung" tetap yang tampil (tidak bisa merekam apa pun).
+    const tester = currentTester();
+    if(VB.ready() && !tester){ needTester(); return; }
+    if(tester){ $('testerName').value = tester; lsSet('tr_tester', tester); }
     qaCancel(); const run = QA.run;   // H2-B: rekaman baru = operasi baru; hasil operasi sebelumnya yang masih berjalan dibuang
     const line = Script.idx[Script.mode] + 1;
     $('scriptResult').textContent = '';
@@ -1898,7 +1926,7 @@
       }
       $('scriptStatus').textContent = 'Menerjemahkan…';
       let e = null;
-      try{ e = await handle(side, text, meta, { ui:'test', target:item.t, ref:item.ref || null, speak: $('testSpeak').checked, line, dialog: Script.mode, role: item.role || null, pair: item.n || null, qaRun: run }); }
+      try{ e = await handle(side, text, meta, { ui:'test', target:item.t, ref:item.ref || null, speak: $('testSpeak').checked, line, dialog: Script.mode, role: item.role || null, pair: item.n || null, qaRun: run, tester }); }
       catch(err){ if(run === QA.run) $('scriptStatus').textContent = 'Gagal memproses hasil: ' + ((err && err.message) || err); return; }   // H3: galat tak terduga tidak boleh meninggalkan status "Menerjemahkan…"
       if(run !== QA.run) return;   // H2-B: dibatalkan selama berjalan; jangan menulis UI
       $('scriptStatus').textContent = e ? 'Selesai. Periksa hasilnya di bawah, lalu tekan ▶ untuk baris berikutnya.' : '';
@@ -1920,7 +1948,8 @@
   Script.custom = parseDialog($('customDialog').value);
   $('btnNewSession').onclick = () => {
     if(Listen.active) stopListening(); qaCancel();
-    $('sessionName').value = defaultSessionName(); lsSet('tr_session', $('sessionName').value);
+    $('sessionName').value = uniqueSessionName(); lsSet('tr_session', $('sessionName').value);   // H4: nama sesi tidak boleh sama dengan sesi yang sudah ada (dua sesi dalam semenit yang sama)
+    $('testerName').value = ''; lsSet('tr_tester', ''); $('testerName').removeAttribute('aria-invalid');   // H4: penguji berikutnya wajib mengisi namanya sendiri
     $('testerName').focus(); renderSummary(); renderTestList(); $('scriptResult').textContent = '';
     toast('Sesi baru dimulai. Isi nama penguji.');
   };
@@ -2091,6 +2120,7 @@
 
   // QA Lab
   bind('testerName', 'tr_tester', '', renderSummary);
+  $('testerName').addEventListener('input', () => { if(currentTester()) $('testerName').removeAttribute('aria-invalid'); });
   bind('sessionName', 'tr_session', defaultSessionName(), () => { renderSummary(); renderTestList(); });
   bind('testSpeak', 'tr_testspeak', false);
   bind('voiceId', 'tr_voice', '');
