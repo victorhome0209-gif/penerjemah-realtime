@@ -1260,7 +1260,7 @@
     const qa = opts.qaRun !== undefined, alive = qa ? () => opts.qaRun === QA.run : () => true;   // H2-B
     if(ui === 'talk') setLive('Menerjemahkan…');
     const entry = { id: Date.now() + '-' + Math.random().toString(36).slice(2, 6), t: new Date().toISOString(),
-      tester: opts.tester !== undefined ? cleanTester(opts.tester) : currentTester(), session: currentSession(), view: ui, side, target: opts.target || null, ref: opts.ref || null,
+      tester: opts.tester !== undefined ? cleanTester(opts.tester) : currentTester(), session: opts.session !== undefined ? String(opts.session) : currentSession(), view: ui, side, target: opts.target || null, ref: opts.ref || null,
       heard: text, translation: '', engine: '', stt: meta.stt || (meta.typed ? 'ketik' : ''), latency_ms: null,
       acc: null, tsim: null, line: opts.line || null, dialog: opts.dialog || null, role: opts.role || null, pair: opts.pair || null, voiced: false, spoken_text: '', voice: '', mic: meta.mic || null, pron: null, trans: null, note: '' };
     if(opts.target) entry.acc = Math.round(accuracy(opts.target, text, c.src) * 100);
@@ -1909,7 +1909,7 @@
     if(Listen.active && Listen.ui === 'test'){ stopListening(); qaCancel(); $('scriptStatus').textContent = 'Dihentikan.'; return; }
     const item = curItem(); if(!item) return;
     // H4: nama penguji wajib. Dicek SEBELUM mikrofon dan panggilan AI; tanpa layanan, pesan "belum terhubung" tetap yang tampil (tidak bisa merekam apa pun).
-    const tester = currentTester();
+    const tester = currentTester(), session = currentSession();   // H4-06: identitas sesi dikunci saat Rekam ditekan; mengubah kolom Nama sesi selagi STT/terjemahan berjalan tidak memindahkan hasil
     if(VB.ready() && !tester){ needTester(); return; }
     if(tester){ $('testerName').value = tester; lsSet('tr_tester', tester); }
     qaCancel(); const run = QA.run;   // H2-B: rekaman baru = operasi baru; hasil operasi sebelumnya yang masih berjalan dibuang
@@ -1926,7 +1926,7 @@
       }
       $('scriptStatus').textContent = 'Menerjemahkan…';
       let e = null;
-      try{ e = await handle(side, text, meta, { ui:'test', target:item.t, ref:item.ref || null, speak: $('testSpeak').checked, line, dialog: Script.mode, role: item.role || null, pair: item.n || null, qaRun: run, tester }); }
+      try{ e = await handle(side, text, meta, { ui:'test', target:item.t, ref:item.ref || null, speak: $('testSpeak').checked, line, dialog: Script.mode, role: item.role || null, pair: item.n || null, qaRun: run, tester, session }); }
       catch(err){ if(run === QA.run) $('scriptStatus').textContent = 'Gagal memproses hasil: ' + ((err && err.message) || err); return; }   // H3: galat tak terduga tidak boleh meninggalkan status "Menerjemahkan…"
       if(run !== QA.run) return;   // H2-B: dibatalkan selama berjalan; jangan menulis UI
       $('scriptStatus').textContent = e ? 'Selesai. Periksa hasilnya di bawah, lalu tekan ▶ untuk baris berikutnya.' : '';
