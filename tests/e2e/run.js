@@ -1211,6 +1211,114 @@ test('H3-06: batas waktu 40 dtk jatuh saat STT sedang berjalan: hasil sukses TID
   });
 });
 
+// ---------------------------------------------------------------------------------------------
+// H4: nama penguji WAJIB sebelum rekaman QA Lab, tersimpan konsisten di catatan, ringkasan, CSV, JSON, teks, transkrip, dan nama berkas.
+// Data lama tidak boleh diubah. Semua memakai OpenAI palsu (tanpa API berbayar).
+const h4Dl = async (p, id) => { const dl = p.waitForEvent('download'); await p.click(id); const d = await dl; return { name: d.suggestedFilename(), body: require('fs').readFileSync(await d.path(), 'utf8') }; };
+function h4Csv(text) {   // pengurai CSV kecil (tanda kutip ganda, koma, baris baru)
+  const rows = []; let row = [], cell = '', q = false; text = text.replace(/^﻿/, '');
+  for (let i = 0; i < text.length; i++) { const c = text[i];
+    if (q) { if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; } else if (c === '"') q = false; else cell += c; }
+    else if (c === '"') q = true; else if (c === ',') { row.push(cell); cell = ''; } else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; } else cell += c; }
+  if (cell || row.length) { row.push(cell); rows.push(row); } return rows;
+}
+const h4Rec = async p => { await p.click('#btnRec'); await p.waitForFunction(() => /Selesai\./.test(document.getElementById('scriptStatus').textContent), null, { timeout: 45000 }); };
+const h4Summary = (p, label) => p.evaluate(l => { const s = [...document.querySelectorAll('#summary span')].map(x => x.textContent); const i = s.indexOf(l); return i >= 0 ? s[i + 1] : null; }, label);
+const h4Gum = p => p.evaluate(() => window.__gum);
+
+test('H4-01: nama penguji kosong atau hanya spasi: rekaman ditolak sebelum mikrofon dan sebelum panggilan AI', async (b, S) => {
+  const { p, code } = await h2bLab(b, S); const stt0 = S.mock.calls.stt, tr0 = S.mock.calls.translate, c0 = await S.api.credits(code), g0 = await h4Gum(p);
+  for (const v of ['', '   ']) {
+    await p.fill('#testerName', v); await p.click('#btnRec'); await sleep(1200);
+    const st = await h3State(p);
+    check('H4-01 [' + JSON.stringify(v) + ']: ditolak dengan pesan "Nama penguji", tidak merekam', /Nama penguji/.test(st.status) && !st.active && /Rekam/.test(st.btn), JSON.stringify(st));
+    check('H4-01 [' + JSON.stringify(v) + ']: kolom nama ditandai dan mendapat fokus', await p.evaluate(() => document.activeElement.id === 'testerName' && document.getElementById('testerName').getAttribute('aria-invalid') === 'true'));
+  }
+  check('H4-01: mikrofon tidak dibuka', (await h4Gum(p)) === g0, g0 + ' -> ' + await h4Gum(p));
+  check('H4-01: nol STT, nol terjemahan, kredit tidak berubah', S.mock.calls.stt === stt0 && S.mock.calls.translate === tr0 && (await S.api.credits(code)) === c0, (S.mock.calls.stt - stt0) + '/' + (S.mock.calls.translate - tr0));
+  check('H4-01: tidak ada catatan', (await h2bMem(p)) === 0 && (await h2bLog(p)).length === 0);
+  await p.fill('#testerName', 'Budi');
+  check('H4-01: penanda salah hilang setelah nama diisi', await p.evaluate(() => document.getElementById('testerName').getAttribute('aria-invalid') !== 'true'));
+  check('H4-01: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
+test('H4-02: nama valid dirapikan dan tercatat konsisten di catatan, ringkasan, CSV, JSON, teks, transkrip, dan nama berkas', async (b, S) => {
+  const { p } = await h2bLab(b, S);
+  await p.fill('#testerName', '  Budi   Santoso  ');
+  await h4Rec(p);
+  const log = await h2bLog(p);
+  check('H4-02: catatan menyimpan nama yang dirapikan (spasi awal/akhir/ganda)', log.length === 1 && log[0].tester === 'Budi Santoso', JSON.stringify(log.map(x => x.tester)));
+  check('H4-02: ringkasan menampilkan nama yang sama', (await h4Summary(p, 'Penguji')) === 'Budi Santoso', await h4Summary(p, 'Penguji'));
+  const csv = h4Csv((await h4Dl(p, '#expCsv')).body), col = csv[0].indexOf('penguji');
+  check('H4-02: CSV kolom penguji = nama', col >= 0 && csv.length === 2 && csv[1][col] === 'Budi Santoso', JSON.stringify(csv[1] && csv[1][col]));
+  const js = await h4Dl(p, '#expJson'), arr = JSON.parse(js.body);
+  check('H4-02: JSON tester = nama', arr.length === 1 && arr[0].tester === 'Budi Santoso', js.body.slice(0, 120));
+  const tx = await h4Dl(p, '#expTxt');
+  check('H4-02: laporan teks memuat "Budi Santoso / <sesi>"', tx.body.includes('Budi Santoso / ' + log[0].session), tx.body.slice(0, 200));
+  const tr = await h4Dl(p, '#expTrans');
+  check('H4-02: transkrip: "Penguji: Budi Santoso"', /Penguji: Budi Santoso \| Sesi:/.test(tr.body), tr.body.slice(0, 120));
+  check('H4-02: nama berkas memuat nama penguji (CSV, JSON, teks)', /Budi_Santoso/.test(js.name) && (await h4Dl(p, '#expCsv')).name.includes('Budi_Santoso') && tx.name.includes('Budi_Santoso'), js.name + ' | ' + tx.name);
+  // nama diubah SESUDAH merekam: catatan lama dan ringkasan tidak ikut berubah
+  await p.fill('#testerName', 'Orang Lain');
+  check('H4-02: mengubah kolom nama tidak mengubah catatan yang sudah ada', (await h2bLog(p))[0].tester === 'Budi Santoso' && (await h4Summary(p, 'Penguji')) === 'Budi Santoso', await h4Summary(p, 'Penguji'));
+  check('H4-02: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
+test('H4-03: nama diubah saat terjemahan berjalan: catatan memakai nama saat tombol Rekam ditekan', async (b, S) => {
+  const { p } = await h2bLab(b, S); await p.fill('#testerName', 'Asli');
+  const hold = h2bHold(p, '**/api/translate', 1);
+  await p.click('#btnRec');
+  check('H4-03: terjemahan ditahan', await h1Until(async () => hold.entered, 40000));
+  await p.fill('#testerName', 'Berubah'); hold.release();
+  await p.waitForFunction(() => /Selesai\./.test(document.getElementById('scriptStatus').textContent), null, { timeout: 30000 });
+  check('H4-03: catatan memakai nama "Asli"', (await h2bLog(p))[0].tester === 'Asli', JSON.stringify((await h2bLog(p)).map(x => x.tester)));
+  check('H4-03: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
+test('H4-04: sesi baru mengosongkan nama (wajib diisi lagi), data lama utuh, dan ekspor semua format benar', async (b, S) => {
+  const { p, code } = await h2bLab(b, S);
+  await p.fill('#testerName', 'Budi'); await h4Rec(p);
+  const before = await p.evaluate(() => localStorage.getItem('tr_log')), s1 = await p.evaluate(() => document.getElementById('sessionName').value);
+  await sleep(1100); await p.click('#btnNewSession');
+  check('H4-04: kolom nama kosong dan tersimpan kosong setelah sesi baru', await p.evaluate(() => document.getElementById('testerName').value === '' && localStorage.getItem('tr_tester') === '' && document.activeElement.id === 'testerName'));
+  check('H4-04: catatan sesi lama utuh persis (tidak diubah)', (await p.evaluate(() => localStorage.getItem('tr_log'))) === before);
+  check('H4-04: ringkasan sesi baru: penguji "–", 0 kalimat', (await h4Summary(p, 'Penguji')) === '–' && (await h4Summary(p, 'Kalimat tercatat')) === '0', await h4Summary(p, 'Penguji'));
+  const stt0 = S.mock.calls.stt, g0 = await h4Gum(p);
+  await p.click('#btnRec'); await sleep(1200);
+  check('H4-04: rekam di sesi baru tanpa nama ditolak (nol STT, mikrofon tidak dibuka)', S.mock.calls.stt === stt0 && (await h4Gum(p)) === g0 && /Nama penguji/.test(await h2bStatus(p)), await h2bStatus(p));
+  await p.fill('#testerName', 'Dewi'); await h4Rec(p);
+  const s2 = await p.evaluate(() => document.getElementById('sessionName').value), log = await h2bLog(p);
+  check('H4-04: dua catatan, sesi berbeda, nama masing-masing', log.length === 2 && log[0].tester === 'Budi' && log[0].session === s1 && log[1].tester === 'Dewi' && log[1].session === s2 && s1 !== s2, JSON.stringify(log.map(x => x.tester + '@' + x.session)));
+  check('H4-04: catatan pertama tidak berubah sedikit pun', JSON.stringify(log[0]) === JSON.stringify(JSON.parse(before)[0]));
+  check('H4-04: ringkasan sesi baru menampilkan Dewi dan 1 kalimat', (await h4Summary(p, 'Penguji')) === 'Dewi' && (await h4Summary(p, 'Kalimat tercatat')) === '1');
+  // ekspor sesi ini: hanya Dewi
+  const csv1 = h4Csv((await h4Dl(p, '#expCsv')).body), c1 = csv1[0].indexOf('penguji');
+  const js1 = await h4Dl(p, '#expJson'), tx1 = await h4Dl(p, '#expTxt'), tr1 = await h4Dl(p, '#expTrans');
+  check('H4-04: ekspor "sesi ini" (CSV/JSON/teks/transkrip) hanya berisi Dewi', csv1.length === 2 && csv1[1][c1] === 'Dewi' && JSON.parse(js1.body).every(x => x.tester === 'Dewi') && /Dewi \//.test(tx1.body) && !/Budi/.test(tx1.body) && /Penguji: Dewi/.test(tr1.body) && /Dewi/.test(js1.name), js1.name);
+  // ekspor semua sesi: Budi dan Dewi
+  await p.selectOption('#exportScope', 'all');
+  const csv2 = h4Csv((await h4Dl(p, '#expCsv')).body), c2 = csv2[0].indexOf('penguji');
+  const js2 = await h4Dl(p, '#expJson'), tx2 = await h4Dl(p, '#expTxt'), tr2 = await h4Dl(p, '#expTrans');
+  check('H4-04: ekspor "semua sesi": CSV dan JSON memuat Budi lalu Dewi', csv2.length === 3 && csv2[1][c2] === 'Budi' && csv2[2][c2] === 'Dewi' && JSON.parse(js2.body).map(x => x.tester).join() === 'Budi,Dewi');
+  check('H4-04: laporan teks memuat kedua nama; transkrip mendaftar kedua penguji', /Budi \//.test(tx2.body) && /Dewi \//.test(tx2.body) && /Penguji: Budi, Dewi \| Sesi:/.test(tr2.body), tr2.body.slice(0, 140));
+  check('H4-04: nama berkas "semua sesi" netral (penguji), tanpa "undefined"', /laporan-uji-penguji-/.test(js2.name) && !/undefined/.test(js2.name), js2.name);
+  check('H4-04: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
+test('H4-05: data uji lama (tanpa nama) tidak dimigrasi atau diubah; hanya ditampilkan dengan label', async (b, S) => {
+  const { p } = await h2bLab(b, S, { init: () => { window.__legacy = JSON.parse(JSON.stringify([{ id: 'lama-1', t: '2026-10-20T01:00:00Z', tester: '', session: 'Sesi Lama', view: 'test', side: 'me', target: 'Selamat pagi', ref: 'Good morning', heard: 'selamat pagi', translation: 'Good morning', engine: 'X', stt: 'backend', latency_ms: 800, acc: 100, tsim: 100, line: 1, dialog: 'A', role: null, pair: null, voiced: false, spoken_text: '', voice: '', mic: null, pron: null, trans: null, note: '' }])); if (!localStorage.getItem('tr_log')) localStorage.setItem('tr_log', JSON.stringify(window.__legacy)); } });
+  const raw0 = await p.evaluate(() => localStorage.getItem('tr_log'));
+  check('H4-05: catatan lama termuat apa adanya', JSON.parse(raw0).length === 1 && JSON.parse(raw0)[0].tester === '');
+  await p.fill('#testerName', 'Baru'); await p.fill('#sessionName', 'Sesi Baru'); await h4Rec(p);
+  const log = await h2bLog(p);
+  check('H4-05: catatan lama tidak berubah sedikit pun; catatan baru memakai nama baru', log.length === 2 && JSON.stringify(log[0]) === JSON.stringify(JSON.parse(raw0)[0]) && log[1].tester === 'Baru', JSON.stringify(log.map(x => x.tester)));
+  await p.selectOption('#exportScope', 'all');
+  const csv = h4Csv((await h4Dl(p, '#expCsv')).body), c = csv[0].indexOf('penguji'), js = JSON.parse((await h4Dl(p, '#expJson')).body), tx = (await h4Dl(p, '#expTxt')).body;
+  check('H4-05: CSV dan JSON mengekspor nilai lama apa adanya (kosong)', csv[1][c] === '' && csv[2][c] === 'Baru' && js[0].tester === '' && js[1].tester === 'Baru');
+  check('H4-05: laporan teks memberi label "(tanpa nama)" pada catatan lama, bukan teks kosong', /\(tanpa nama\) \/ Sesi Lama/.test(tx) && /Baru \/ Sesi Baru/.test(tx), tx.slice(0, 260));
+  check('H4-05: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
 (async () => {
   const S = await startAll({ credits: 100 });
   const browser = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--use-file-for-fake-audio-capture=' + S.wav, '--autoplay-policy=no-user-gesture-required'] });
