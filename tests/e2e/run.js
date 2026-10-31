@@ -1110,6 +1110,107 @@ test('H2B-08: jalur normal tidak berubah: Rekam otomatis berhenti saat VAD menye
   check('H2B-08: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
 });
 
+// ---------------------------------------------------------------------------------------------
+// H3: QA Lab "satu klik rekam = paling banyak satu STT dan satu terjemahan". Semua memakai OpenAI PALSU (tanpa API berbayar).
+// Mikrofon palsu mengulang satu "ucapan" tiap 7 detik, jadi ucapan kedua/ketiga SELALU datang bila rekaman tidak berhenti sendiri.
+// Bukti awal (sebelum perbaikan): hasil STT kosong atau gagal tidak menghentikan rekaman -> STT terpanggil lagi tiap ucapan, kredit habis, status tetap "Mendengarkan".
+const h3Init = () => { window.__qaTimers = []; const st = window.setTimeout; window.setTimeout = function (fn, ms, ...a) { if (ms === 40000) window.__qaTimers.push(fn); return st.call(window, fn, ms, ...a); }; };
+const h3State = p => p.evaluate(() => ({ active: window.__t.Listen.active, log: window.__t.LOG().length, status: document.getElementById('scriptStatus').textContent, btn: document.getElementById('btnRec').textContent }));
+async function h3Run(b, S, setup, body) {   // menyiapkan mock, menjalankan, lalu SELALU memulihkan mock bersama
+  const orig = { sttFor: S.mock.sttFor, sttDelay: S.mock.sttDelay, failStt: S.mock.fail.stt, failTr: S.mock.fail.translate };
+  try { setup && setup(S.mock); await body(); }
+  finally { S.mock.sttFor = orig.sttFor; S.mock.sttDelay = orig.sttDelay; if (orig.failStt) S.mock.fail.stt = orig.failStt; else delete S.mock.fail.stt; if (orig.failTr) S.mock.fail.translate = orig.failTr; else delete S.mock.fail.translate; }
+}
+
+test('H3-01: hasil STT kosong: tepat satu STT, nol terjemahan, rekaman berhenti sendiri, tidak ada panggilan AI tambahan', async (b, S) => {
+  await h3Run(b, S, m => { m.sttFor = () => ''; }, async () => {
+    const { p, code } = await h2bLab(b, S); const stt0 = S.mock.calls.stt, tr0 = S.mock.calls.translate, c0 = await S.api.credits(code);
+    await p.click('#btnRec');
+    check('H3-01: satu STT terkirim', await h1Until(async () => S.mock.calls.stt === stt0 + 1, 30000));
+    check('H3-01: rekaman berhenti sendiri setelah hasil kosong', await h1Until(async () => !(await h3State(p)).active, 8000), JSON.stringify(await h3State(p)));
+    await sleep(16000);   // lebih dari dua putaran ucapan mikrofon palsu
+    const st = await h3State(p);
+    check('H3-01: tetap satu STT (tanpa pengulangan otomatis)', S.mock.calls.stt === stt0 + 1, S.mock.calls.stt - stt0);
+    check('H3-01: nol terjemahan', S.mock.calls.translate === tr0, S.mock.calls.translate - tr0);
+    check('H3-01: kredit hanya terpakai untuk satu STT (2 kredit)', (await S.api.credits(code)) === c0 - 2, c0 + ' -> ' + await S.api.credits(code));
+    check('H3-01: status bukan "Mendengarkan", tombol kembali "Rekam", mikrofon dilepas', !/Mendengarkan/.test(st.status) && /Rekam/.test(st.btn) && (await h2bLive(p)) === 0, JSON.stringify(st));
+    check('H3-01: status menjelaskan hasil kosong dan tidak ada catatan palsu', /kosong|tidak dikenali/i.test(st.status) && st.log === 0, st.status);
+    check('H3-01: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+  });
+});
+
+test('H3-02: STT gagal (server menolak): tepat satu STT, rekaman berhenti, pesan galat jelas', async (b, S) => {
+  await h3Run(b, S, m => { m.fail.stt = 500; }, async () => {
+    const { p } = await h2bLab(b, S); const stt0 = S.mock.calls.stt, tr0 = S.mock.calls.translate;
+    await p.click('#btnRec');
+    check('H3-02: satu STT terkirim', await h1Until(async () => S.mock.calls.stt === stt0 + 1, 30000));
+    check('H3-02: rekaman berhenti sendiri setelah gagal', await h1Until(async () => !(await h3State(p)).active, 8000), JSON.stringify(await h3State(p)));
+    await sleep(16000);
+    const st = await h3State(p);
+    check('H3-02: tetap satu STT dan nol terjemahan', S.mock.calls.stt === stt0 + 1 && S.mock.calls.translate === tr0, (S.mock.calls.stt - stt0) + '/' + (S.mock.calls.translate - tr0));
+    check('H3-02: status melaporkan gagal, bukan "Mendengarkan"', /Gagal/.test(st.status) && !/Mendengarkan/.test(st.status) && /Rekam/.test(st.btn), JSON.stringify(st));
+    check('H3-02: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+  });
+});
+
+test('H3-03: STT lambat: ucapan berikutnya tidak memicu STT kedua, hasil sukses tercatat sekali', async (b, S) => {
+  await h3Run(b, S, m => { m.sttDelay = 9000; }, async () => {
+    const { p, code } = await h2bLab(b, S); const stt0 = S.mock.calls.stt, tr0 = S.mock.calls.translate, c0 = await S.api.credits(code); S.mock.maxInflight.stt = 0;
+    await p.click('#btnRec');
+    await p.waitForFunction(() => /Selesai\./.test(document.getElementById('scriptStatus').textContent), null, { timeout: 45000 });
+    await sleep(9000);   // beri waktu bagi STT tambahan (bila ada) untuk terkirim
+    check('H3-03: tidak pernah dua STT berjalan bersamaan', S.mock.maxInflight.stt <= 1, S.mock.maxInflight.stt);
+    check('H3-03: tepat satu STT dan satu terjemahan', S.mock.calls.stt === stt0 + 1 && S.mock.calls.translate === tr0 + 1, (S.mock.calls.stt - stt0) + '/' + (S.mock.calls.translate - tr0));
+    check('H3-03: kredit = 1 STT + 1 terjemahan (3 kredit)', (await S.api.credits(code)) === c0 - 3, c0 + ' -> ' + await S.api.credits(code));
+    check('H3-03: tepat satu catatan di memori dan localStorage', (await h2bMem(p)) === 1 && (await h2bLog(p)).length === 1);
+    check('H3-03: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+  });
+});
+
+test('H3-04: jalur sukses: tercatat di QA Lab (LOG, localStorage, ringkasan sesi, hasil di layar) dan tidak ada panggilan tambahan', async (b, S) => {
+  const { p } = await h2bLab(b, S); const stt0 = S.mock.calls.stt, tr0 = S.mock.calls.translate;
+  await p.click('#btnRec');
+  await p.waitForFunction(() => /Selesai\./.test(document.getElementById('scriptStatus').textContent), null, { timeout: 45000 });
+  await sleep(15000);   // dua putaran ucapan palsu berikutnya tidak boleh memicu apa pun
+  const log = await h2bLog(p), st = await h3State(p);
+  const sum = await p.evaluate(() => { const s = [...document.querySelectorAll('#summary span')].map(x => x.textContent); const i = s.indexOf('Kalimat tercatat'); return i >= 0 ? s[i + 1] : null; });
+  check('H3-04: satu catatan lengkap (teks, terjemahan, mesin)', log.length === 1 && log[0].heard && log[0].translation && log[0].engine && !log[0].error, JSON.stringify(log[0] || {}).slice(0, 160));
+  check('H3-04: ringkasan sesi menghitung 1 kalimat', sum === '1', sum);
+  check('H3-04: hasil tampil dan rekaman sudah berhenti', (await h2bResult(p)) > 10 && !st.active && /Rekam/.test(st.btn), JSON.stringify(st));
+  check('H3-04: tepat satu STT dan satu terjemahan, tetap setelah 15 dtk', S.mock.calls.stt === stt0 + 1 && S.mock.calls.translate === tr0 + 1, (S.mock.calls.stt - stt0) + '/' + (S.mock.calls.translate - tr0));
+  check('H3-04: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+});
+
+test('H3-05: Berhenti saat STT berjalan: hasil usang dibuang, tidak ada terjemahan/catatan/STT baru, mikrofon dilepas', async (b, S) => {
+  await h3Run(b, S, m => { m.sttDelay = 6000; }, async () => {
+    const { p } = await h2bLab(b, S); const stt0 = S.mock.calls.stt, tr0 = S.mock.calls.translate;
+    await p.click('#btnRec');
+    check('H3-05: STT berjalan di server', await h1Until(async () => S.mock.inflight.stt === 1, 30000));
+    await p.click('#btnRec');   // Berhenti
+    await sleep(7500 + 9000);   // STT selesai di server + dua putaran ucapan palsu
+    const st = await h3State(p);
+    check('H3-05: tidak ada terjemahan dan tidak ada STT baru', S.mock.calls.translate === tr0 && S.mock.calls.stt === stt0 + 1, (S.mock.calls.translate - tr0) + '/' + (S.mock.calls.stt - stt0));
+    check('H3-05: nol catatan (memori dan localStorage), hasil kosong, status "Dihentikan."', st.log === 0 && (await h2bLog(p)).length === 0 && (await h2bResult(p)) === 0 && /Dihentikan/.test(st.status), JSON.stringify(st));
+    check('H3-05: tombol kembali "Rekam", mikrofon dilepas', /Rekam/.test(st.btn) && !st.active && (await h2bLive(p)) === 0, JSON.stringify(st));
+    check('H3-05: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+  });
+});
+
+test('H3-06: batas waktu 40 dtk jatuh saat STT sedang berjalan: hasil sukses TIDAK boleh hilang', async (b, S) => {
+  await h3Run(b, S, m => { m.sttDelay = 5000; }, async () => {
+    const { p } = await h2bLab(b, S, { init: h3Init }); const tr0 = S.mock.calls.translate;
+    await p.click('#btnRec');
+    check('H3-06: STT berjalan di server', await h1Until(async () => S.mock.inflight.stt === 1, 30000));
+    const fired = await p.evaluate(() => { const f = window.__qaTimers[window.__qaTimers.length - 1]; if (!f) return false; f(); return true; });   // simulasi batas waktu jatuh sekarang
+    check('H3-06: pewaktu batas waktu ditemukan dan dipicu', fired);
+    await p.waitForFunction(() => /Selesai\.|Tidak ada suara|Gagal/.test(document.getElementById('scriptStatus').textContent), null, { timeout: 30000 });
+    await sleep(500);
+    const st = await h3State(p);
+    check('H3-06: hasil STT sukses tetap diterjemahkan dan tercatat (1 catatan, 1 terjemahan)', st.log === 1 && S.mock.calls.translate === tr0 + 1 && /Selesai\./.test(st.status), JSON.stringify(st));
+    check('H3-06: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+  });
+});
+
 (async () => {
   const S = await startAll({ credits: 100 });
   const browser = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--use-file-for-fake-audio-capture=' + S.wav, '--autoplay-policy=no-user-gesture-required'] });

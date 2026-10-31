@@ -929,7 +929,7 @@
     setLive('Menyesuaikan suara latar… diam sebentar, lalu bicara.');
   }
   function vadFrame(v, x, rate, side, lang){
-    if(!Listen.active || Listen.vad !== v) return;
+    if(!Listen.active || Listen.vad !== v || v.closed) return;   // H3: setelah ucapan diserahkan ke STT (mode sekali), frame berikutnya diabaikan
     const { rms } = rmsPeak(x), dur = x.length / rate * 1000;
     setMeter(Listen.ui === 'test' ? 'meterTest' : 'meterTalk', rms);
     if(speaking){ v.state = 'idle'; v.pre = []; v.buf = []; v.onCount = 0; return; }
@@ -957,19 +957,38 @@
     if(voiced < 350){ setLive('Mendengarkan… (' + cfg[side].label + ')'); return; }
     const samples = concatF32(chunks), info = analyzeFrames(chunks, rate);
     setLive('Mengenali suara…');
+    if(Listen.once){
+      // H3: satu klik rekam = paling banyak SATU permintaan STT. Setelah ucapan pertama diserahkan, mikrofon dilepas dan frame diabaikan;
+      // hasil kosong/gagal MENGAKHIRI rekaman (endOnce) dan tidak pernah memicu STT lagi secara otomatis.
+      v.sttSent = true; v.closed = true; v.buf = []; v.pre = [];
+      const c = Listen.cap; Listen.cap = null; if(c){ try{ c.stop(); }catch(_){} }
+      setMeter('meterTest', 0); setMeter('meterTalk', 0);
+      if(Listen.ui === 'test') $('scriptStatus').textContent = 'Mengenali suara…';
+    }
     transcribeUtterance(samples, rate, lang, info, side, v);
+  }
+  // H3: mengakhiri rekaman mode sekali TANPA hasil teks (kosong/gagal/batas waktu) dan memberi tahu pemanggil tepat sekali. Hanya rekaman yang sama.
+  function endOnce(v, side, meta){
+    if(!(Listen.active && Listen.vad === v)) return;
+    const cb = Listen.onText; stopListening(); cb(side, null, meta);
   }
   async function transcribeUtterance(samples, rate, lang, info, side, v){
     const t0 = performance.now(), mine = () => Listen.active && Listen.vad === v;   // H2-B: hanya rekaman yang sama yang boleh menerima hasil/retry
     try{
       const text = await sttBackend(samples, rate, lang, mine);
       const ms = Math.round(performance.now() - t0);
-      if(!text || HALLU.test(text)){ if(mine()) setLive('Mendengarkan… (' + cfg[side].label + ')'); return; }
+      if(!mine()) return;   // H2-B/H3: dihentikan selama STT berjalan; hasil usang dibuang (kredit STT sudah terpakai, tidak kembali otomatis)
+      if(!text || HALLU.test(text)){
+        if(Listen.once) endOnce(v, side, { empty:true });
+        else setLive('Mendengarkan… (' + cfg[side].label + ')');
+        return;
+      }
       deliver(side, text, { stt:'backend', stt_ms: ms, mic: micInfo(info) }, v);
     }catch(e){
       if(!mine()) return;
       toast('Gagal mengenali suara: ' + e.message);
-      setLive('Gagal mengenali suara. Coba lagi.');
+      if(Listen.once) endOnce(v, side, { error: e.message });
+      else setLive('Gagal mengenali suara. Coba lagi.');
     }
   }
   async function startListening(side, onText, once, ui){
@@ -984,7 +1003,9 @@
     if(Listen.seq !== seq || !Listen.active) return null;   // H2-B: dihentikan/diganti saat mikrofon disiapkan; tidak ada timer/keepAwake yang bocor
     if(Listen.once){
       Listen.timeout = setTimeout(() => {
-        if(Listen.active){ const cb = Listen.onText, s = Listen.side; stopListening(); cb(s, null, { timeout:true }); }
+        // H3: batas "tidak ada suara" tidak boleh memotong STT yang SUDAH terkirim (hasil suksesnya akan hilang padahal kredit terpakai);
+        // permintaan STT punya batas waktunya sendiri di vbCall, jadi rekaman pasti berakhir lewat hasil atau galat.
+        if(Listen.active && !(Listen.vad && Listen.vad.sttSent)){ const cb = Listen.onText, s = Listen.side; stopListening(); cb(s, null, { timeout:true }); }
       }, 40000);
     }
     keepAwake(true); startTimer(); refreshButtons();
@@ -1869,9 +1890,16 @@
     $('scriptStatus').textContent = 'Menyiapkan mikrofon… bicaralah setelah muncul "Mendengarkan", lalu diam sebentar.';
     const ok = await startListening(item.side, async (side, text, meta) => {
       if(run !== QA.run) return;
-      if(text === null){ $('scriptStatus').textContent = 'Tidak ada suara terdengar. Coba lagi.'; return; }
+      if(text === null){   // H3: rekaman sudah berhenti; tidak ada percobaan otomatis. Pengguna menekan Rekam lagi bila mau mengulang.
+        $('scriptStatus').textContent = meta && meta.empty ? 'Suara tidak dikenali (hasil kosong). Tidak ada percobaan otomatis; tekan Rekam untuk mencoba lagi.'
+          : meta && meta.error ? 'Gagal mengenali suara: ' + meta.error + ' Tidak ada percobaan otomatis; tekan Rekam untuk mencoba lagi.'
+          : 'Tidak ada suara terdengar. Coba lagi.';
+        return;
+      }
       $('scriptStatus').textContent = 'Menerjemahkan…';
-      const e = await handle(side, text, meta, { ui:'test', target:item.t, ref:item.ref || null, speak: $('testSpeak').checked, line, dialog: Script.mode, role: item.role || null, pair: item.n || null, qaRun: run });
+      let e = null;
+      try{ e = await handle(side, text, meta, { ui:'test', target:item.t, ref:item.ref || null, speak: $('testSpeak').checked, line, dialog: Script.mode, role: item.role || null, pair: item.n || null, qaRun: run }); }
+      catch(err){ if(run === QA.run) $('scriptStatus').textContent = 'Gagal memproses hasil: ' + ((err && err.message) || err); return; }   // H3: galat tak terduga tidak boleh meninggalkan status "Menerjemahkan…"
       if(run !== QA.run) return;   // H2-B: dibatalkan selama berjalan; jangan menulis UI
       $('scriptStatus').textContent = e ? 'Selesai. Periksa hasilnya di bawah, lalu tekan ▶ untuk baris berikutnya.' : '';
       if(e){ $('scriptResult').innerHTML = resultHtml(e); $('btnNext').classList.add('pri', 'pulse'); }
