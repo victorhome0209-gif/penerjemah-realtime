@@ -1319,6 +1319,33 @@ test('H4-05: data uji lama (tanpa nama) tidak dimigrasi atau diubah; hanya ditam
   check('H4-05: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
 });
 
+test('H4-06: Nama sesi diubah saat STT berjalan: catatan tetap di sesi saat Rekam ditekan; ringkasan dan ekspor konsisten', async (b, S) => {
+  await h3Run(b, S, m => { m.sttDelay = 6000; }, async () => {
+    const { p } = await h2bLab(b, S);
+    await p.fill('#testerName', 'Budi'); await p.fill('#sessionName', 'Sesi A'); await p.dispatchEvent('#sessionName', 'change');
+    await p.click('#btnRec');
+    check('H4-06: STT berjalan di server', await h1Until(async () => S.mock.inflight.stt === 1, 30000));
+    await p.fill('#sessionName', 'Sesi B'); await p.dispatchEvent('#sessionName', 'change'); await p.fill('#testerName', 'Orang Lain');   // diubah selagi STT berjalan
+    await p.waitForFunction(() => /Selesai\./.test(document.getElementById('scriptStatus').textContent), null, { timeout: 45000 });
+    const log = await h2bLog(p);
+    check('H4-06: catatan tetap di "Sesi A" dengan penguji "Budi"', log.length === 1 && log[0].session === 'Sesi A' && log[0].tester === 'Budi', JSON.stringify(log.map(x => x.tester + '@' + x.session)));
+    check('H4-06: ringkasan sesi aktif "Sesi B" tidak memuat hasil (0 kalimat)', (await h4Summary(p, 'Kalimat tercatat')) === '0', await h4Summary(p, 'Kalimat tercatat'));
+    await p.fill('#sessionName', 'Sesi A'); await p.dispatchEvent('#sessionName', 'change');
+    check('H4-06: kembali ke "Sesi A": ringkasan 1 kalimat, penguji Budi', (await h4Summary(p, 'Kalimat tercatat')) === '1' && (await h4Summary(p, 'Penguji')) === 'Budi', (await h4Summary(p, 'Kalimat tercatat')) + '/' + await h4Summary(p, 'Penguji'));
+    const csv = h4Csv((await h4Dl(p, '#expCsv')).body), cs = csv[0].indexOf('sesi'), cp = csv[0].indexOf('penguji');
+    const js = JSON.parse((await h4Dl(p, '#expJson')).body), tx = (await h4Dl(p, '#expTxt')).body, tr = (await h4Dl(p, '#expTrans')).body;
+    check('H4-06: ekspor "sesi ini" (Sesi A) memuat catatan: CSV, JSON, teks, transkrip konsisten', csv.length === 2 && csv[1][cs] === 'Sesi A' && csv[1][cp] === 'Budi' && js.length === 1 && js[0].session === 'Sesi A' && /Budi \/ Sesi A/.test(tx) && /Penguji: Budi \| Sesi: Sesi A/.test(tr), JSON.stringify(csv[1]).slice(0, 80));
+    await p.fill('#sessionName', 'Sesi B'); await p.dispatchEvent('#sessionName', 'change');
+    const t0 = await p.evaluate(() => document.getElementById('toast').textContent);
+    await p.click('#expJson'); await sleep(400);
+    check('H4-06: ekspor "sesi ini" di Sesi B kosong (tidak ada berkas), data tidak berpindah', /Belum ada data/.test(await p.evaluate(() => document.getElementById('toast').textContent)), t0);
+    await p.selectOption('#exportScope', 'all');
+    const all = JSON.parse((await h4Dl(p, '#expJson')).body);
+    check('H4-06: ekspor "semua sesi": satu catatan, sesi A', all.length === 1 && all[0].session === 'Sesi A' && all[0].tester === 'Budi');
+    check('H4-06: tanpa galat JS', p.errors.length === 0, p.errors.join('|'));
+  });
+});
+
 (async () => {
   const S = await startAll({ credits: 100 });
   const browser = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--use-file-for-fake-audio-capture=' + S.wav, '--autoplay-policy=no-user-gesture-required'] });
